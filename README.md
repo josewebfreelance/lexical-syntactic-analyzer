@@ -15,7 +15,19 @@ Este proyecto es un analizador léxico, sintáctico e intérprete para un lengua
 
 - Python 3
 - Java (necesario para generar el Parser de ANTLR)
+- Uso de entorno virtual (recomendado)
+   ```bash
+   source venv/bin/activate
+   ```
 - `antlr4-tools` y `antlr4-python3-runtime`
+- Generar archivos del parser:
+   ```bash
+   java -jar antlr-4.13.2-complete.jar -Dlanguage=Python3 -visitor Language.g4
+   ```
+- Ejecutar el Intérprete:
+   ```bash
+   python3 main.py input.txt
+   ```
 
 ## Ejecución de los Ejemplos
 
