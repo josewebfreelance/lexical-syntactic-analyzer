@@ -10,10 +10,7 @@ class Interpreter(LanguageVisitor):
     def visitProgram(self, ctx: LanguageParser.ProgramContext):
         return self.visitChildren(ctx)
 
-
-
-
-# expr: left=expr op=('*'|'/') right=expr # MulDiv
+    # expr: left=expr op=('*'|'/') right=expr # MulDiv
     def visitMulDiv(self, ctx: LanguageParser.MulDivContext):
         left = self.visit(ctx.left)
         right = self.visit(ctx.right)
