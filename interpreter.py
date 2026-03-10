@@ -65,3 +65,16 @@ class Interpreter(LanguageVisitor):
     # expr: NUMBER # Int
     def visitInt(self, ctx: LanguageParser.IntContext):
         return int(ctx.NUMBER().getText())
+
+
+   def visitAssignment(self, ctx: LanguageParser.AssignmentContext):
+        var_name = ctx.ID().getText()
+        if var_name not in self.variables:
+            raise NameError(f"Error Semántico: Variable '{var_name}' no declarada.")
+        
+        value = self.visit(ctx.expr())
+        self.variables[var_name] = value
+        return value
+
+    def visitBlock(self, ctx: LanguageParser.BlockContext):
+        return self.visitChildren(ctx)
