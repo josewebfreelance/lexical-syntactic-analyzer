@@ -31,3 +31,18 @@ class Interpreter(LanguageVisitor):
         right = self.visit(ctx.right)
         op = ctx.op.text
         return (left + right) if op == '+' else (left - right)
+
+    # expr: '(' expr ')' # Parens
+    def visitParens(self, ctx: LanguageParser.ParensContext):
+        return self.visit(ctx.expr())
+
+    # expr: ID # Id
+    def visitId(self, ctx: LanguageParser.IdContext):
+        var_name = ctx.ID().getText()
+        if var_name in self.variables:
+            return self.variables[var_name]
+        raise NameError(f"Error: Variable '{var_name}' no definida.")
+
+    # expr: NUMBER # Int
+    def visitInt(self, ctx: LanguageParser.IntContext):
+        return int(ctx.NUMBER().getText())
