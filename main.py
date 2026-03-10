@@ -5,9 +5,13 @@ from LanguageParser import LanguageParser
 from interpreter import Interpreter
 
 def main():
-    # Nombre del archivo de prueba
-    input_file = "input.txt"
-    
+    # Verificamos si el usuario pasó el nombre del archivo
+    if len(sys.argv) < 2:
+        print("Uso: python3 main.py <archivo_de_entrada>")
+        return
+
+    input_file = sys.argv[1] # Tomamos el primer argumento después del nombre del script
+
     try:
         # Cargar el archivo
         input_stream = FileStream(input_file, encoding='utf-8')
@@ -20,6 +24,10 @@ def main():
         parser = LanguageParser(token_stream)
         tree = parser.program()
         
+        #Verificar errores de sintaxis antes de comtinuar
+        if parser.getNumberOfSyntaxErrors()>0:
+            print("\n[!] Error. Se encontrarron errores de sintaxis en el programa.")
+            return
 
         # Ejecutar el Intérprete mediante el Visitor
         print("--- Iniciando Ejecución ---")

@@ -9,7 +9,27 @@ class Interpreter(LanguageVisitor):
     # program: 'program' '{' (declaration | statement)* '}' ;
     def visitProgram(self, ctx: LanguageParser.ProgramContext):
         return self.visitChildren(ctx)
-            # conditional: 'if' '(' condition ')' block ('else' block)? ;
+
+    #declaration:'int' ID ',';
+    def visitDeclaration(self, ctx: LanguageParser.DeclarationContext):
+        var_name = ctx.ID().getText()
+        #Inicializamos la variable en nuestratabla de simbolos
+        self.variables[var_name] = 0
+        return 0
+
+    def visitAssignment(self, ctx: LanguageParser.AssignmentContext):
+        var_name = ctx.ID().getText()
+        if var_name not in self.variables:
+            raise NameError(f"Error Semántico: Variable '{var_name}' no declarada.")
+
+        value = self.visit(ctx.expr())
+        self.variables[var_name] = value
+        return value
+
+    def visitBlock(self, ctx: LanguageParser.BlockContext):
+        return self.visitChildren(ctx)
+
+    # conditional: 'if' '(' condition ')' block ('else' block)? ;
     def visitConditional(self, ctx: LanguageParser.ConditionalContext):
         condition_result = self.visit(ctx.condition())
         if condition_result:
