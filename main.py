@@ -5,9 +5,13 @@ from LanguageParser import LanguageParser
 from interpreter import Interpreter
 
 def main():
-    # Nombre del archivo de prueba
-    input_file = "input.txt"
-    
+    # Verificamos si el usuario pasó el nombre del archivo
+    if len(sys.argv) < 2:
+        print("Uso: python3 main.py <archivo_de_entrada>")
+        return
+
+    input_file = sys.argv[1] # Tomamos el primer argumento después del nombre del script
+
     try:
         # Cargar el archivo
         input_stream = FileStream(input_file, encoding='utf-8')
