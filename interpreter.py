@@ -11,11 +11,23 @@ class Interpreter(LanguageVisitor):
         return self.visitChildren(ctx)
 
     #declaration:'int' ID ',';
-    def visitDeclaration(self, ctx: languageParser.DeclationContect):
-        var_name = CTX.ID().getText()
+    def visitDeclaration(self, ctx: LanguageParser.DeclarationContext):
+        var_name = ctx.ID().getText()
         #Inicializamos la variable en nuestratabla de simbolos
         self.variables[var_name] = 0
         return 0
+
+    def visitAssignment(self, ctx: LanguageParser.AssignmentContext):
+        var_name = ctx.ID().getText()
+        if var_name not in self.variables:
+            raise NameError(f"Error Semántico: Variable '{var_name}' no declarada.")
+
+        value = self.visit(ctx.expr())
+        self.variables[var_name] = value
+        return value
+
+    def visitBlock(self, ctx: LanguageParser.BlockContext):
+        return self.visitChildren(ctx)
 
     # conditional: 'if' '(' condition ')' block ('else' block)? ;
     def visitConditional(self, ctx: LanguageParser.ConditionalContext):
@@ -73,16 +85,3 @@ class Interpreter(LanguageVisitor):
     # expr: NUMBER # Int
     def visitInt(self, ctx: LanguageParser.IntContext):
         return int(ctx.NUMBER().getText())
-
-
-   def visitAssignment(self, ctx: LanguageParser.AssignmentContext):
-        var_name = ctx.ID().getText()
-        if var_name not in self.variables:
-            raise NameError(f"Error Semántico: Variable '{var_name}' no declarada.")
-
-        value = self.visit(ctx.expr())
-        self.variables[var_name] = value
-        return value
-
-    def visitBlock(self, ctx: LanguageParser.BlockContext):
-        return self.visitChildren(ctx)

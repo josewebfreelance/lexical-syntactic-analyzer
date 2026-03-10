@@ -23,7 +23,7 @@ def main():
         #Verificar errores de sintaxis antes de comtinuar
         if parser.getNumberOfSyntaxErrors()>0:
             print("\n[!] Error. Se encontrarron errores de sintaxis en el programa.")
-                  return
+            return
 
         # Ejecutar el Intérprete mediante el Visitor
         print("--- Iniciando Ejecución ---")
