@@ -1,7 +1,7 @@
 """
 pipeline.py
 -----------
-Orquesta las 4 fases del compilador en secuencia con detención temprana:
+Orquesta las 4 fases del compilador en secuencia:
 
   1. Léxico     → LexerErrorListener   captura tokens inválidos
   2. Sintáctico → ParserErrorListener  captura violaciones de gramática
