@@ -202,3 +202,30 @@ class Interpreter(LanguageVisitor):
         value = self.visit(ctx.expr())
         print(value)
         return value
+
+# ── Condiciones ───────────────────────────────────────────────────────────
+
+    def visitAndOr(self, ctx: LanguageParser.AndOrContext):
+        left = self.visit(ctx.condition(0))
+        right = self.visit(ctx.condition(1))
+        op = ctx.op.text
+        if op == '&&':
+            return bool(left) and bool(right)
+        return bool(left) or bool(right)
+
+    def visitComparison(self, ctx: LanguageParser.ComparisonContext):
+        left = self.visit(ctx.expr(0))
+        right = self.visit(ctx.expr(1))
+        op = ctx.op.text
+        ops = {
+            '>':  left > right,
+            '<':  left < right,
+            '==': left == right,
+            '!=': left != right,
+            '>=': left >= right,
+            '<=': left <= right,
+        }
+        return ops.get(op, False)
+
+    def visitParensCond(self, ctx: LanguageParser.ParensCondContext):
+        return self.visit(ctx.condition())
