@@ -140,4 +140,5 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Uso: python3 pipeline.py <archivo_fuente>")
         sys.exit(1)
+
     run_pipeline(sys.argv[1])

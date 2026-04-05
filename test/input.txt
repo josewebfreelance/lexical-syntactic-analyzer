@@ -1,3 +1,4 @@
+<<<<<<< HEAD:test/input.txt
 program myprogram {
     // Variables
     int x;
@@ -15,3 +16,22 @@ program myprogram {
         w = z - 5;
     }
 }
+=======
+program {
+    // Variables
+    int x;
+    int y;
+    int w;
+    int z;
+
+    x = 10;
+    y = 20;
+    z = x + y * 2;
+    
+    if (z > 30) {
+        w = z / 2;
+    } else {
+        w = z - 5;
+    }
+}
+>>>>>>> 394a2de20a4b314ca718dfb36bc3f4b8da19b359:input.txt

@@ -58,3 +58,4 @@ El `pipeline.py` de este motor orquesta 3 instancias críticas sucesivas (y se d
 - `semantic_visitor.py`: Control de consistencia del código sin ejecución en vivo.
 - `interpreter.py`: Motor de iteración de lógica matemática, estado de ciclo de vida (`while`/`for`) e impresión.
 - `symbol_table.py`: Memoria y registro para inferencia de dependencias durante análisis semántico.
+
