@@ -173,42 +173,42 @@ class Interpreter(LanguageVisitor):
         return None
 
     def visitForStmt(self, ctx: LanguageParser.ForStmtContext):
-        """
-        for (init; cond; step) statement
-        Nota: 'cond' en la gramática actual es un expr (no condition).
-        """
-        # Init
-        if ctx.variable():
-            self.visit(ctx.variable())
-        else:
-            assignments = ctx.assignment()
-            if assignments and len(assignments) > 0:
-                # Si hay variable de init, todos los assignment son step;
-                # si no hay variable, el primer assignment es el init
-                self.visit(assignments[0])
+            """
+            for (init; cond; step) statement
+            Nota: 'cond' en la gramática actual es un expr (no condition).
+            """
+            # Init
+            if ctx.variable():
+                self.visit(ctx.variable())
+            else:
+                assignments = ctx.assignment()
+                if assignments and len(assignments) > 0:
+                    # Si hay variable de init, todos los assignment son step;
+                    # si no hay variable, el primer assignment es el init
+                    self.visit(assignments[0])
 
-        has_var_init = ctx.variable() is not None
-        assignments = list(ctx.assignment()) if ctx.assignment() else []
+            has_var_init = ctx.variable() is not None
+            assignments = list(ctx.assignment()) if ctx.assignment() else []
 
-        # Determinar cuál es el step
-        if has_var_init:
-            step = assignments[0] if assignments else None
-        else:
-            step = assignments[1] if len(assignments) >= 2 else None
+            # Determinar cuál es el step
+            if has_var_init:
+                step = assignments[0] if assignments else None
+            else:
+                step = assignments[1] if len(assignments) >= 2 else None
 
-        # Loop
-        while True:
-            if ctx.expr():
-                if not self.visit(ctx.expr()):
-                    break
-            try:
-                self.visit(ctx.statement())
-            except ReturnException:
-                raise
-            if step:
-                self.visit(step)
+            # Loop
+            while True:
+                if ctx.expr():
+                    if not self.visit(ctx.expr()):
+                        break
+                try:
+                    self.visit(ctx.statement())
+                except ReturnException:
+                    raise
+                if step:
+                    self.visit(step)
 
-        return None
+            return None
 
     def visitPrintStmt(self, ctx: LanguageParser.PrintStmtContext):
         """Imprime el valor de la expresión."""

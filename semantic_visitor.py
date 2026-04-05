@@ -18,20 +18,13 @@ class SemanticVisitor(LanguageVisitor):
 
     def __init__(self):
         self.symbol_table = SymbolTable()
-        self.errors: list[str] = []
-        # Tipo de retorno esperado dentro de la función actual (None = scope global)
+        self.errors = []
         self.current_function_return_type = None
 
-    # ── Reporte de errores ────────────────────────────────────────────────────
-
-    def _err(self, line: int, col: int, msg: str):
+    def _err(self, line, col, msg):
         self.errors.append(f"[Error Semántico] Línea {line}, Columna {col}: {msg}")
 
-    # ── Inferencia de tipos ──────────────────────────────────────────────────
-    # Retorna el tipo como str ('int', 'float', 'string', 'bool') o None si
-    # no se puede determinar (ya se habrá anotado el error correspondiente).
-
-    def _infer(self, ctx) -> str | None:
+    def _infer(self, ctx):
         if isinstance(ctx, LanguageParser.IntContext):
             return 'int'
 
@@ -49,8 +42,7 @@ class SemanticVisitor(LanguageVisitor):
             sym = self.symbol_table.lookup(name)
             if sym is None:
                 tok = ctx.ID().getSymbol()
-                self._err(tok.line, tok.column,
-                          f"Variable '{name}' no declarada.")
+                self._err(tok.line, tok.column, f"Variable '{name}' no declarada.")
                 return None
             return sym['type']
 
@@ -64,44 +56,45 @@ class SemanticVisitor(LanguageVisitor):
             lt = self._infer(ctx.left)
             rt = self._infer(ctx.right)
             op = ctx.op.text
-            # Permitir concatenación de strings con '+'
+
             if op == '+' and lt == 'string' and rt == 'string':
                 return 'string'
+
             if lt == 'string' or rt == 'string':
                 self._err(ctx.op.line, ctx.op.column,
-                          f"Operación '{op}' no válida con tipo 'string'. "
-                          f"Solo se permite '+' entre dos operandos 'string'.")
+                          f"Operación '{op}' no válida con tipo 'string'.")
                 return None
+
             return self._check_numeric_compat(lt, rt, ctx.op)
 
         if isinstance(ctx, LanguageParser.FunctionCallContext):
             return self._check_call(ctx)
 
-        return None  # Tipo desconocido — no generar error aquí
+        return None
 
-    def _infer_binary(self, ctx) -> str | None:
-        """Valida una operación binaria aritmética (*, /)."""
+    def _infer_binary(self, ctx):
         lt = self._infer(ctx.left)
         rt = self._infer(ctx.right)
+
         if lt == 'string' or rt == 'string':
             self._err(ctx.op.line, ctx.op.column,
                       f"Operación '{ctx.op.text}' no válida con tipo 'string'.")
             return None
+
         return self._check_numeric_compat(lt, rt, ctx.op)
 
-    def _check_numeric_compat(self, lt, rt, op_token) -> str | None:
-        """Verifica compatibilidad de tipos numéricos (sin promoción implícita)."""
+    def _check_numeric_compat(self, lt, rt, op_token):
         if lt is None or rt is None:
-            return lt or rt  # Propagar tipo conocido si uno falló antes
+            return lt or rt
+
         if lt != rt:
             self._err(op_token.line, op_token.column,
-                      f"Incompatibilidad de tipos en '{op_token.text}': "
-                      f"'{lt}' y '{rt}'. No hay promoción implícita de tipos.")
+                      f"Incompatibilidad de tipos en '{op_token.text}': '{lt}' y '{rt}'.")
             return None
+
         return lt
 
-    def _check_call(self, ctx) -> str | None:
-        """Valida una llamada a función y retorna su tipo de retorno."""
+    def _check_call(self, ctx):
         name = ctx.ID().getText()
         tok = ctx.ID().getSymbol()
         func = self.symbol_table.lookup_function(name)
@@ -129,18 +122,16 @@ class SemanticVisitor(LanguageVisitor):
 
         return func['return_type']
 
-    # ── Visitors de estructura ────────────────────────────────────────────────
-
-    def visitProgram(self, ctx: LanguageParser.ProgramContext):
+    def visitProgram(self, ctx):
         return self.visitChildren(ctx)
 
-    def visitDeclaration(self, ctx: LanguageParser.DeclarationContext):
+    def visitDeclaration(self, ctx):
         return self.visitChildren(ctx)
 
-    def visitStatement(self, ctx: LanguageParser.StatementContext):
+    def visitStatement(self, ctx):
         return self.visitChildren(ctx)
 
-    def visitType(self, ctx: LanguageParser.TypeContext):
+    def visitType(self, ctx):
         return None
 
     def visitArgsFunction(self, ctx: LanguageParser.ArgsFunctionContext):
