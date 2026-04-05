@@ -158,3 +158,121 @@ class Interpreter(LanguageVisitor):
             except ReturnException:
                 raise  # Propagar return fuera del while hacia la función
         return None
+
+    def visitForStmt(self, ctx: LanguageParser.ForStmtContext):
+        """
+        for (init; cond; step) statement
+        Nota: 'cond' en la gramática actual es un expr (no condition).
+        """
+        # Init
+        if ctx.variable():
+            self.visit(ctx.variable())
+        else:
+            assignments = ctx.assignment()
+            if assignments and len(assignments) > 0:
+                # Si hay variable de init, todos los assignment son step;
+                # si no hay variable, el primer assignment es el init
+                self.visit(assignments[0])
+
+        has_var_init = ctx.variable() is not None
+        assignments = list(ctx.assignment()) if ctx.assignment() else []
+
+        # Determinar cuál es el step
+        if has_var_init:
+            step = assignments[0] if assignments else None
+        else:
+            step = assignments[1] if len(assignments) >= 2 else None
+
+        # Loop
+        while True:
+            if ctx.expr():
+                if not self.visit(ctx.expr()):
+                    break
+            try:
+                self.visit(ctx.statement())
+            except ReturnException:
+                raise
+            if step:
+                self.visit(step)
+
+        return None
+
+    def visitPrintStmt(self, ctx: LanguageParser.PrintStmtContext):
+        """Imprime el valor de la expresión."""
+        value = self.visit(ctx.expr())
+        print(value)
+        return value
+
+# ── Condiciones ───────────────────────────────────────────────────────────
+
+    def visitAndOr(self, ctx: LanguageParser.AndOrContext):
+        left = self.visit(ctx.condition(0))
+        right = self.visit(ctx.condition(1))
+        op = ctx.op.text
+        if op == '&&':
+            return bool(left) and bool(right)
+        return bool(left) or bool(right)
+
+    def visitComparison(self, ctx: LanguageParser.ComparisonContext):
+        left = self.visit(ctx.expr(0))
+        right = self.visit(ctx.expr(1))
+        op = ctx.op.text
+        ops = {
+            '>':  left > right,
+            '<':  left < right,
+            '==': left == right,
+            '!=': left != right,
+            '>=': left >= right,
+            '<=': left <= right,
+        }
+        return ops.get(op, False)
+
+    def visitParensCond(self, ctx: LanguageParser.ParensCondContext):
+        return self.visit(ctx.condition())
+    
+    # ── Expresiones aritméticas ───────────────────────────────────────────────
+
+    def visitMulDiv(self, ctx: LanguageParser.MulDivContext):
+        left = self.visit(ctx.left)
+        right = self.visit(ctx.right)
+        op = ctx.op.text
+        if op == '*':
+            return left * right
+        if right == 0:
+            raise ZeroDivisionError("[Error Runtime] División por cero.")
+        # Mantener int si ambos son int y es divisible; float si no
+        if isinstance(left, int) and isinstance(right, int) and left % right == 0:
+            return left // right
+        return left / right
+
+    def visitAddSub(self, ctx: LanguageParser.AddSubContext):
+        left = self.visit(ctx.left)
+        right = self.visit(ctx.right)
+        return (left + right) if ctx.op.text == '+' else (left - right)
+
+    def visitParens(self, ctx: LanguageParser.ParensContext):
+        return self.visit(ctx.expr())
+
+ # ── Literales ─────────────────────────────────────────────────────────────
+
+    def visitInt(self, ctx: LanguageParser.IntContext):
+        return int(ctx.NUMBER().getText())
+
+    def visitFloatExpr(self, ctx: LanguageParser.FloatExprContext):
+        return float(ctx.FLOAT().getText())
+
+    def visitStringExpr(self, ctx: LanguageParser.StringExprContext):
+        # Eliminar las comillas dobles: "hello" → hello
+        raw = ctx.STRING().getText()
+        return raw[1:-1]
+
+    def visitBoolExpr(self, ctx: LanguageParser.BoolExprContext):
+        return ctx.BOOL().getText() == 'true'
+
+# ── Identificadores y argumentos ─────────────────────────────────────────
+
+    def visitId(self, ctx: LanguageParser.IdContext):
+        return self._lookup_var(ctx.ID().getText())
+
+    def visitArgs(self, ctx: LanguageParser.ArgsContext):
+        return [self.visit(e) for e in ctx.expr()]
