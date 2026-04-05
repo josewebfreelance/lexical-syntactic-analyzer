@@ -1,4 +1,4 @@
-# ── Generados por ANTLR4 ──
+# ── Generados por ANTLR4 (se regeneran con: antlr4 -Dlanguage=Python3 -visitor -no-listener Language.g4) ──
 Language.interp
 Language.tokens
 LanguageLexer.interp

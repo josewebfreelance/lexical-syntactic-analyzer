@@ -1,3 +1,16 @@
+"""
+interpreter_visitor.py  (clase: Interpreter)
+---------------------------------------------
+Visitor de EJECUCIÓN. Solo se llama cuando el SemanticVisitor terminó con 0 errores.
+Usa un call stack de frames para soportar recursividad real:
+  - self.global_env  : variables globales {name: value}
+  - self.functions   : funciones registradas {name: FunctionContext}
+  - self.call_stack  : pila de frames locales [{name: value}, ...]
+
+La búsqueda de variables sigue el orden:
+  frame_actual → global_env → NameError
+"""
+
 from LanguageVisitor import LanguageVisitor
 from LanguageParser import LanguageParser
 
@@ -6,7 +19,7 @@ from LanguageParser import LanguageParser
 
 class ReturnException(Exception):
     """Usado para cortar la ejecución de un bloque de función al encontrar return."""
-    def _init_(self, value):
+    def __init__(self, value):
         self.value = value
 
 
@@ -14,7 +27,7 @@ class ReturnException(Exception):
 
 class Interpreter(LanguageVisitor):
 
-    def _init_(self):
+    def __init__(self):
         self.global_env: dict = {}         # Variables globales
         self.functions: dict = {}          # Funciones registradas
         self.call_stack: list[dict] = []   # Stack de frames locales
@@ -159,8 +172,6 @@ class Interpreter(LanguageVisitor):
                 raise  # Propagar return fuera del while hacia la función
         return None
 
-<<<<<<< HEAD
-
     def visitForStmt(self, ctx: LanguageParser.ForStmtContext):
             """
             for (init; cond; step) statement
@@ -198,45 +209,6 @@ class Interpreter(LanguageVisitor):
                     self.visit(step)
 
             return None
-=======
-    def visitForStmt(self, ctx: LanguageParser.ForStmtContext):
-        """
-        for (init; cond; step) statement
-        Nota: 'cond' en la gramática actual es un expr (no condition).
-        """
-        # Init
-        if ctx.variable():
-            self.visit(ctx.variable())
-        else:
-            assignments = ctx.assignment()
-            if assignments and len(assignments) > 0:
-                # Si hay variable de init, todos los assignment son step;
-                # si no hay variable, el primer assignment es el init
-                self.visit(assignments[0])
-
-        has_var_init = ctx.variable() is not None
-        assignments = list(ctx.assignment()) if ctx.assignment() else []
-
-        # Determinar cuál es el step
-        if has_var_init:
-            step = assignments[0] if assignments else None
-        else:
-            step = assignments[1] if len(assignments) >= 2 else None
-
-        # Loop
-        while True:
-            if ctx.expr():
-                if not self.visit(ctx.expr()):
-                    break
-            try:
-                self.visit(ctx.statement())
-            except ReturnException:
-                raise
-            if step:
-                self.visit(step)
-
-        return None
->>>>>>> feature/frontend-interpreter
 
     def visitPrintStmt(self, ctx: LanguageParser.PrintStmtContext):
         """Imprime el valor de la expresión."""
@@ -244,11 +216,7 @@ class Interpreter(LanguageVisitor):
         print(value)
         return value
 
-<<<<<<< HEAD
     # ── Condiciones ───────────────────────────────────────────────────────────
-=======
-# ── Condiciones ───────────────────────────────────────────────────────────
->>>>>>> feature/frontend-interpreter
 
     def visitAndOr(self, ctx: LanguageParser.AndOrContext):
         left = self.visit(ctx.condition(0))
@@ -274,12 +242,8 @@ class Interpreter(LanguageVisitor):
 
     def visitParensCond(self, ctx: LanguageParser.ParensCondContext):
         return self.visit(ctx.condition())
-    
-<<<<<<< HEAD
-# ── Expresiones aritméticas ───────────────────────────────────────────────
-=======
+
     # ── Expresiones aritméticas ───────────────────────────────────────────────
->>>>>>> feature/frontend-interpreter
 
     def visitMulDiv(self, ctx: LanguageParser.MulDivContext):
         left = self.visit(ctx.left)
@@ -302,11 +266,7 @@ class Interpreter(LanguageVisitor):
     def visitParens(self, ctx: LanguageParser.ParensContext):
         return self.visit(ctx.expr())
 
-<<<<<<< HEAD
     # ── Literales ─────────────────────────────────────────────────────────────
-=======
- # ── Literales ─────────────────────────────────────────────────────────────
->>>>>>> feature/frontend-interpreter
 
     def visitInt(self, ctx: LanguageParser.IntContext):
         return int(ctx.NUMBER().getText())
@@ -322,11 +282,7 @@ class Interpreter(LanguageVisitor):
     def visitBoolExpr(self, ctx: LanguageParser.BoolExprContext):
         return ctx.BOOL().getText() == 'true'
 
-<<<<<<< HEAD
- # ── Identificadores y argumentos ─────────────────────────────────────────
-=======
-# ── Identificadores y argumentos ─────────────────────────────────────────
->>>>>>> feature/frontend-interpreter
+    # ── Identificadores y argumentos ─────────────────────────────────────────
 
     def visitId(self, ctx: LanguageParser.IdContext):
         return self._lookup_var(ctx.ID().getText())

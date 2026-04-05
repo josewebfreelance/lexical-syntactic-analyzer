@@ -1,4 +1,3 @@
-
 class SymbolTable:
     def __init__(self):
         # Pila de scopes: índice 0 = scope global, el último = scope actual
@@ -6,7 +5,7 @@ class SymbolTable:
         # Registro de funciones: name -> {return_type, params: [(type_str, name)]}
         self.functions = {}
 
-    # ── Manejo de scopes ──
+    # ── Manejo de scopes ─────────────────────────────────────────────────────
 
     def push_scope(self):
         self.scopes.append({})
@@ -15,7 +14,7 @@ class SymbolTable:
         if len(self.scopes) > 1:
             self.scopes.pop()
 
-    # ── Variables ───────
+    # ── Variables ────────────────────────────────────────────────────────────
 
     def declare(self, name, data_type, line=0, col=0):
         """Declara variable en el scope actual. Retorna False si ya existe en este nivel."""

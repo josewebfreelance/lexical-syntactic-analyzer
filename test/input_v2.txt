@@ -1,0 +1,22 @@
+program myprogram {
+    int x = 3;
+    string prefijo = "El resultado es: ";
+
+    // Declaración de función
+    int factorial(int n) {
+    if (n <= 1) {
+        return 1;
+    } else {
+        return n * factorial(n - 1); // Prueba de recursividad
+    }
+    }
+
+    // Uso de ciclos y scopes
+    while (x > 0) {
+        int temp = factorial(x); // temp se guarda en la Tabla Hash local
+        print(prefijo);
+        print(temp);
+
+        x = x - 2;
+    }
+}
