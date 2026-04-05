@@ -252,3 +252,19 @@ class Interpreter(LanguageVisitor):
 
     def visitParens(self, ctx: LanguageParser.ParensContext):
         return self.visit(ctx.expr())
+
+ # ── Literales ─────────────────────────────────────────────────────────────
+
+    def visitInt(self, ctx: LanguageParser.IntContext):
+        return int(ctx.NUMBER().getText())
+
+    def visitFloatExpr(self, ctx: LanguageParser.FloatExprContext):
+        return float(ctx.FLOAT().getText())
+
+    def visitStringExpr(self, ctx: LanguageParser.StringExprContext):
+        # Eliminar las comillas dobles: "hello" → hello
+        raw = ctx.STRING().getText()
+        return raw[1:-1]
+
+    def visitBoolExpr(self, ctx: LanguageParser.BoolExprContext):
+        return ctx.BOOL().getText() == 'true'
