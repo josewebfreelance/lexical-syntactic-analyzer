@@ -1,47 +1,13 @@
+"""
+Punto de entrada del compilador, se delega toda la lógica al pipeline.
+"""
+
 import sys
-from antlr4 import *
-from LanguageLexer import LanguageLexer
-from LanguageParser import LanguageParser
-from interpreter import Interpreter
-
-def main():
-    # Verificamos si el usuario pasó el nombre del archivo
-    if len(sys.argv) < 2:
-        print("Uso: python3 main.py <archivo_de_entrada>")
-        return
-
-    input_file = sys.argv[1] # Tomamos el primer argumento después del nombre del script
-
-    try:
-        # Cargar el archivo
-        input_stream = FileStream(input_file, encoding='utf-8')
-        
-        # Análisis Léxico
-        lexer = LanguageLexer(input_stream)
-        token_stream = CommonTokenStream(lexer)
-        
-        # Análisis Sintáctico
-        parser = LanguageParser(token_stream)
-        tree = parser.program()
-        
-        #Verificar errores de sintaxis antes de comtinuar
-        if parser.getNumberOfSyntaxErrors()>0:
-            print("\n[!] Error. Se encontrarron errores de sintaxis en el programa.")
-            return
-
-        # Ejecutar el Intérprete mediante el Visitor
-        print("--- Iniciando Ejecución ---")
-        visitor = Interpreter()
-        visitor.visit(tree)
-        
-        # Mostrar el estado final de las variables (Requisito de validación)
-        print("\n--- Ejecución Exitosa ---")
-        print("Variables finales:")
-        for var, val in visitor.variables.items():
-            print(f"  {var} = {val}")
-
-    except Exception as e:
-        print(f"\n[!] Error durante la ejecución: {e}")
+from pipeline import run_pipeline
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) < 2:
+        print("Uso: python3 main.py <archivo_fuente>")
+        print("Ejemplo: python3 main.py test.txt")
+        sys.exit(1)
+    run_pipeline(sys.argv[1])
