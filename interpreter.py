@@ -268,3 +268,11 @@ class Interpreter(LanguageVisitor):
 
     def visitBoolExpr(self, ctx: LanguageParser.BoolExprContext):
         return ctx.BOOL().getText() == 'true'
+
+# ── Identificadores y argumentos ─────────────────────────────────────────
+
+    def visitId(self, ctx: LanguageParser.IdContext):
+        return self._lookup_var(ctx.ID().getText())
+
+    def visitArgs(self, ctx: LanguageParser.ArgsContext):
+        return [self.visit(e) for e in ctx.expr()]
