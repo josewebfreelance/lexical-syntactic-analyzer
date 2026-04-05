@@ -1,11 +1,27 @@
-# Archivos de entrada
+# ── Generados por ANTLR4 ──
 Language.interp
 Language.tokens
 LanguageLexer.interp
-
-LanguageLexer.py
 LanguageLexer.tokens
+LanguageLexer.py
 LanguageListener.py
 LanguageParser.py
 LanguageVisitor.py
+
+# ── Carpeta interna de ANTLR extension para VSCode ──
+.antlr/
+
+# ── Entornos virtuales de Python ──
+.venv/
+venv/
+env/
+
+# ── Caché de Python ──
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ── IDEs ──
 .idea/
+.vscode/
+*.swp
