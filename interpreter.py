@@ -230,4 +230,28 @@ class Interpreter(LanguageVisitor):
 
     def visitParensCond(self, ctx: LanguageParser.ParensCondContext):
         return self.visit(ctx.condition())
+    
+# ── Expresiones aritméticas ───────────────────────────────────────────────
+
+    def visitMulDiv(self, ctx: LanguageParser.MulDivContext):
+        left = self.visit(ctx.left)
+        right = self.visit(ctx.right)
+        op = ctx.op.text
+        if op == '*':
+            return left * right
+        if right == 0:
+            raise ZeroDivisionError("[Error Runtime] División por cero.")
+        # Mantener int si ambos son int y es divisible; float si no
+        if isinstance(left, int) and isinstance(right, int) and left % right == 0:
+            return left // right
+        return left / right
+
+    def visitAddSub(self, ctx: LanguageParser.AddSubContext):
+        left = self.visit(ctx.left)
+        right = self.visit(ctx.right)
+        return (left + right) if ctx.op.text == '+' else (left - right)
+
+    def visitParens(self, ctx: LanguageParser.ParensContext):
+        return self.visit(ctx.expr())
+
 
