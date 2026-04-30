@@ -299,4 +299,92 @@ class SemanticVisitor(Language_v3Visitor):
                       "La sentencia 'continue' solo puede usarse dentro de un ciclo.")
         return None
 
+    def visitReturnStmt(self, ctx: Language_v3Parser.ReturnStmtContext):
+        if self.current_function_return_type is None:
+            return None
+
+        if ctx.expr():
+            expr_type = self._infer(ctx.expr())
+            if self.current_function_return_type == 'void':
+                self._err(ctx.start.line, ctx.start.column,
+                          "Una función 'void' no puede retornar un valor.")
+            elif expr_type is not None and expr_type != self.current_function_return_type:
+                self._err(ctx.start.line, ctx.start.column,
+                          f"Tipo de retorno incorrecto. Se esperaba "
+                          f"'{self.current_function_return_type}' "
+                          f"pero se retornó '{expr_type}'.")
+        else:
+            if self.current_function_return_type != 'void':
+                self._err(ctx.start.line, ctx.start.column,
+                          f"La función debe retornar un valor de tipo "
+                          f"'{self.current_function_return_type}'.")
+        return None
+
+    def visitPrintStmt(self, ctx: Language_v3Parser.PrintStmtContext):
+        self._infer(ctx.expr())
+        return None
+
+    def visitComparison(self, ctx: Language_v3Parser.ComparisonContext):
+        lt = self._infer(ctx.expr(0))
+        rt = self._infer(ctx.expr(1))
+        if lt is not None and rt is not None and lt != rt:
+            self._err(ctx.op.line, ctx.op.column,
+                      f"Incompatibilidad de tipos en comparación "
+                      f"'{ctx.op.text}': '{lt}' y '{rt}'.")
+        return None
+
+    def visitAndOr(self, ctx: Language_v3Parser.AndOrContext):
+        self.visit(ctx.condition(0))
+        self.visit(ctx.condition(1))
+        return None
+
+    def visitParensCond(self, ctx: Language_v3Parser.ParensCondContext):
+        return self.visit(ctx.condition())
+
+    def visitMulDivMod(self, ctx: Language_v3Parser.MulDivModContext):
+        self._infer(ctx)
+        return None
+
+    def visitAddSub(self, ctx: Language_v3Parser.AddSubContext):
+        self._infer(ctx)
+        return None
+
+    def visitParens(self, ctx: Language_v3Parser.ParensContext):
+        self._infer(ctx)
+        return None
+
+    def visitFunctionCall(self, ctx: Language_v3Parser.FunctionCallContext):
+        self._infer(ctx)
+        return None
+
+    def visitArrayAccess(self, ctx: Language_v3Parser.ArrayAccessContext):
+        self._infer(ctx)
+        return None
+
+    def visitArrayLit(self, ctx: Language_v3Parser.ArrayLitContext):
+        self._infer(ctx)
+        return None
+
+    def visitArrayNew(self, ctx: Language_v3Parser.ArrayNewContext):
+        self._infer(ctx)
+        return None
+
+    def visitId(self, ctx: Language_v3Parser.IdContext):
+        self._infer(ctx)
+        return None
+
+    def visitInt(self, ctx: Language_v3Parser.IntContext):
+        return None
+
+    def visitFloatExpr(self, ctx: Language_v3Parser.FloatExprContext):
+        return None
+
+    def visitStringExpr(self, ctx: Language_v3Parser.StringExprContext):
+        return None
+
+    def visitBoolExpr(self, ctx: Language_v3Parser.BoolExprContext):
+        return None
+
+    def visitArgs(self, ctx: Language_v3Parser.ArgsContext):
+        return self.visitChildren(ctx)
 
