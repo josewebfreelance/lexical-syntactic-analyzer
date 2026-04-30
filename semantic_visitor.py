@@ -259,3 +259,44 @@ class SemanticVisitor(Language_v3Visitor):
         self.current_function_return_type = prev_return_type
         self.symbol_table.pop_scope()
         return None
+
+    def visitBlock(self, ctx: Language_v3Parser.BlockContext):
+        self.symbol_table.push_scope()
+        self.visitChildren(ctx)
+        self.symbol_table.pop_scope()
+        return None
+
+    def visitConditional(self, ctx: Language_v3Parser.ConditionalContext):
+        self.visit(ctx.condition())
+        for block in ctx.block():
+            self.visit(block)
+        return None
+
+    def visitWhileStmt(self, ctx: Language_v3Parser.WhileStmtContext):
+        self.visit(ctx.condition())
+        self.loop_depth += 1
+        self.visit(ctx.block())
+        self.loop_depth -= 1
+        return None
+
+    def visitForStmt(self, ctx: Language_v3Parser.ForStmtContext):
+        self.symbol_table.push_scope()
+        self.loop_depth += 1
+        self.visitChildren(ctx)
+        self.loop_depth -= 1
+        self.symbol_table.pop_scope()
+        return None
+
+    def visitBreakStmt(self, ctx: Language_v3Parser.BreakStmtContext):
+        if self.loop_depth == 0:
+            self._err(ctx.BREAK_R().getSymbol().line, ctx.BREAK_R().getSymbol().column,
+                      "La sentencia 'break' solo puede usarse dentro de un ciclo.")
+        return None
+
+    def visitContinueStmt(self, ctx: Language_v3Parser.ContinueStmtContext):
+        if self.loop_depth == 0:
+            self._err(ctx.CONTINUE_R().getSymbol().line, ctx.CONTINUE_R().getSymbol().column,
+                      "La sentencia 'continue' solo puede usarse dentro de un ciclo.")
+        return None
+
+
