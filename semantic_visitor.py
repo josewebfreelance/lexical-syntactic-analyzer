@@ -156,3 +156,45 @@ class SemanticVisitor(Language_v3Visitor):
                               f"se esperaba '{ptype}' pero se pasó '{at}'.")
 
         return func['return_type']
+
+    def visitProgram(self, ctx: Language_v3Parser.ProgramContext):
+        return self.visitChildren(ctx)
+
+    def visitImportStmt(self, ctx: Language_v3Parser.ImportStmtContext):
+        module_name = ctx.ID().getText()
+        self.symbol_table.add_import(module_name)
+        return None
+
+    def visitDeclaration(self, ctx: Language_v3Parser.DeclarationContext):
+        return self.visitChildren(ctx)
+
+    def visitStatement(self, ctx: Language_v3Parser.StatementContext):
+        return self.visitChildren(ctx)
+
+    def visitVarType(self, ctx: Language_v3Parser.VarTypeContext):
+        return None
+
+    def visitVariable(self, ctx: Language_v3Parser.VariableContext):
+        type_str = ctx.varType().getText()
+        var_name = ctx.ID().getText()
+        tok = ctx.ID().getSymbol()
+        
+        is_array = type_str.endswith('[]')
+        
+        # Solo validar tipo si hay inicializador
+        if ctx.expr():
+            expr_type = self._infer(ctx.expr())
+            if expr_type is not None:
+                # Caso especial: arreglo vacío [] compatible con cualquier T[]
+                if expr_type == 'void[]' and is_array:
+                    pass
+                elif expr_type != type_str:
+                    self._err(tok.line, tok.column,
+                              f"Incompatibilidad de tipos. No se puede asignar "
+                              f"'{expr_type}' a '{type_str}'.")
+
+        ok = self.symbol_table.declare(var_name, type_str, is_array=is_array, line=tok.line, col=tok.column)
+        if not ok:
+            self._err(tok.line, tok.column,
+                      f"Variable '{var_name}' ya declarada en este ámbito.")
+        return None
