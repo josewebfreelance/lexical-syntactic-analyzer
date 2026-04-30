@@ -198,3 +198,64 @@ class SemanticVisitor(Language_v3Visitor):
             self._err(tok.line, tok.column,
                       f"Variable '{var_name}' ya declarada en este ámbito.")
         return None
+
+    def visitAssignment(self, ctx: Language_v3Parser.AssignmentContext):
+        var_name = ctx.ID().getText()
+        tok = ctx.ID().getSymbol()
+
+        entry = self.symbol_table.lookup(var_name)
+        if entry is None:
+            self._err(tok.line, tok.column,
+                      f"Variable '{var_name}' no declarada.")
+            return None
+
+        expr_type = self._infer(ctx.expr())
+        
+        # Si es asignación a índice: ID '[' expr ']' '=' expr
+        if len(ctx.expr()) == 2:
+            if not entry.get('is_array'):
+                self._err(tok.line, tok.column, f"La variable '{var_name}' no es un arreglo.")
+            else:
+                idx_type = self._infer(ctx.expr(0))
+                val_type = self._infer(ctx.expr(1))
+                if idx_type != 'int':
+                    self._err(ctx.expr(0).start.line, ctx.expr(0).start.column, "El índice debe ser int.")
+                if val_type != entry['element_type']:
+                    self._err(tok.line, tok.column, 
+                              f"No se puede asignar '{val_type}' a un elemento de tipo '{entry['element_type']}'.")
+        else:
+            if expr_type is not None:
+                if expr_type == 'void[]' and entry.get('is_array'):
+                    pass
+                elif expr_type != entry['type']:
+                    self._err(tok.line, tok.column,
+                              f"Incompatibilidad de tipos. No se puede asignar "
+                              f"'{expr_type}' a '{entry['type']}'.")
+        return None
+
+    def visitFunction(self, ctx: Language_v3Parser.FunctionContext):
+        return_type = ctx.varType().getText()
+        func_name = ctx.ID().getText()
+        tok = ctx.ID().getSymbol()
+
+        params = []
+        if ctx.argsFunction():
+            af = ctx.argsFunction()
+            types = [t.getText() for t in af.varType()]
+            names = [n.getText() for n in af.ID()]
+            params = list(zip(types, names))
+
+        self.symbol_table.declare_function(func_name, return_type, params)
+
+        self.symbol_table.push_scope()
+        for ptype, pname in params:
+            self.symbol_table.declare(pname, ptype, is_array=ptype.endswith('[]'))
+
+        prev_return_type = self.current_function_return_type
+        self.current_function_return_type = return_type
+
+        self.visit(ctx.block())
+
+        self.current_function_return_type = prev_return_type
+        self.symbol_table.pop_scope()
+        return None
