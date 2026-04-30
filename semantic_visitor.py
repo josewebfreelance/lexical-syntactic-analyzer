@@ -128,3 +128,31 @@ class SemanticVisitor(Language_v3Visitor):
             return None
 
         return lt
+
+    def _check_call(self, ctx):
+        name = ctx.ID().getText()
+        tok = ctx.ID().getSymbol()
+        func = self.symbol_table.lookup_function(name)
+
+        if func is None:
+            self._err(tok.line, tok.column,
+                      f"Función '{name}' no declarada.")
+            return None
+
+        params = func['params']
+        args_ctx = ctx.args()
+        call_args = args_ctx.expr() if args_ctx else []
+
+        if len(call_args) != len(params):
+            self._err(tok.line, tok.column,
+                      f"Función '{name}' espera {len(params)} argumento(s), "
+                      f"se pasaron {len(call_args)}.")
+        else:
+            for i, (arg_expr, (ptype, pname)) in enumerate(zip(call_args, params)):
+                at = self._infer(arg_expr)
+                if at is not None and at != ptype:
+                    self._err(arg_expr.start.line, arg_expr.start.column,
+                              f"Argumento {i + 1} de '{name}': "
+                              f"se esperaba '{ptype}' pero se pasó '{at}'.")
+
+        return func['return_type']
