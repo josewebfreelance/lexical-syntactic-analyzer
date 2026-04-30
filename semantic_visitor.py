@@ -106,3 +106,25 @@ class SemanticVisitor(Language_v3Visitor):
             return f"{base_type}[]"
 
         return None
+
+    def _infer_binary(self, ctx):
+        lt = self._infer(ctx.left)
+        rt = self._infer(ctx.right)
+
+        if lt == 'string' or rt == 'string':
+            self._err(ctx.op.line, ctx.op.column,
+                      f"Operación '{ctx.op.text}' no válida con tipo 'string'.")
+            return None
+
+        return self._check_numeric_compat(lt, rt, ctx.op)
+
+    def _check_numeric_compat(self, lt, rt, op_token):
+        if lt is None or rt is None:
+            return lt or rt
+
+        if lt != rt:
+            self._err(op_token.line, op_token.column,
+                      f"Incompatibilidad de tipos en '{op_token.text}': '{lt}' y '{rt}'.")
+            return None
+
+        return lt
