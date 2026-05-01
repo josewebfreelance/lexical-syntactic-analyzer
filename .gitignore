@@ -1,11 +1,31 @@
-# Archivos de entrada
-Language.interp
-Language.tokens
-LanguageLexer.interp
+# ── Generados por ANTLR4 (se regeneran desde los archivos .g4) ──
+Language*.py
+Language*.interp
+Language*.tokens
+!Language*.g4
 
-LanguageLexer.py
-LanguageLexer.tokens
-LanguageListener.py
-LanguageParser.py
-LanguageVisitor.py
+# ── Salidas de Compilación y Archivos Temporales ──
+output.tac
+output.ll
+output.bc
+temp.ll
+temp.bc
+
+# ── Carpeta interna de ANTLR extension para VSCode ──
+.antlr/
+
+# ── Entornos virtuales de Python ──
+.venv/
+venv/
+env/
+
+# ── Caché de Python ──
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ── IDEs y Sistema ──
 .idea/
+.vscode/
+*.swp
+.DS_Store
