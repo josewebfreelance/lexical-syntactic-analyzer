@@ -1,6 +1,0 @@
-program errorSemantico {
-    string prefijo = "hola";
-    x = 5;
-
-    print(prefijo + x);
-}

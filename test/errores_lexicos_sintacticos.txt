@@ -1,9 +1,0 @@
-program errores_lexicos_sintacticos {
-    int _x = 5;
-
-    while (_x > 0) {
-        _x = _x - 1;
-
-        pint(_x);
-    }
-}

@@ -1,0 +1,6 @@
+program ErrorLexico {
+    int @variable = 10; // Caracter @ no reconocido
+    float valor = 3.14.15; // Formato de float inválido
+    string msg = "Texto sin cerrar;
+    int $precio = 100; // Caracter $ no reconocido
+}

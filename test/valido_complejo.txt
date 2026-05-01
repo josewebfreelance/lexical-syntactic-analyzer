@@ -1,0 +1,46 @@
+import math;
+import utils;
+
+program Complejo {
+    int x = 10;
+    float y = 20.5;
+    string saludo = "Bienvenido al compilador";
+    bool activo = true;
+    int[] numeros = [10, 20, 30, 40, 50];
+
+    int calcularArea(int base, int altura) {
+        int area = base * altura;
+        return area;
+    }
+
+    void procesarDatos(int[] data) {
+        int i;
+        for (i = 0; i < 5; i = i + 1) {
+            if (data[i] > 25) {
+                print(data[i]);
+            } else {
+                continue;
+            }
+        }
+    }
+
+    print(saludo);
+
+    if (activo && x < 15) {
+        int r = calcularArea(x, 5);
+        print(r);
+    } else {
+        print("No activo o x muy grande");
+    }
+
+    procesarDatos(numeros);
+
+    int j = 0;
+    while (j < 3) {
+        print(j);
+        j = j + 1;
+        if (j == 2) {
+            break;
+        }
+    }
+}
