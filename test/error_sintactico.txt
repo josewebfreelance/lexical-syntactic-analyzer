@@ -1,0 +1,20 @@
+program ErrorSintactico {
+    int x = 10 // Falta punto y coma
+    
+    if (x > 5) {
+        print(x) // Falta punto y coma
+    }
+
+    // Error en estructura de for (falta una expresión o punto y coma)
+    for (int i = 0; i < 10 i = i + 1) { 
+        print(i);
+    }
+
+    // Paréntesis no cerrado
+    int y = (5 + 3; 
+
+    // Bloque sin cerrar
+    while (x > 0) {
+        x = x - 1;
+    // Falta llave de cierre
+}
