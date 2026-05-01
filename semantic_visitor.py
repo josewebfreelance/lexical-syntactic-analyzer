@@ -1,43 +1,40 @@
 """
 semantic_visitor.py
 -------------------
-Visitor de VALIDACIÓN de tipos. Recorre el AST y acumula errores semánticos
-SIN ejecutar ningún cálculo real. Solo si self.errors queda vacío el pipeline
-debe llamar al InterpreterVisitor.
-
-Formatos de error:
-  [Error Semántico] Línea X, Columna Y: <descripción>.
+Visitor de VALIDACIÓN de tipos para Fase 3 (v3).
+Soporta arreglos, módulo, break/continue e imports.
 """
 
-from LanguageVisitor import LanguageVisitor
-from LanguageParser import LanguageParser
+from Language_v3Visitor import Language_v3Visitor
+from Language_v3Parser import Language_v3Parser
 from symbol_table import SymbolTable
 
 
-class SemanticVisitor(LanguageVisitor):
+class SemanticVisitor(Language_v3Visitor):
 
     def __init__(self):
         self.symbol_table = SymbolTable()
         self.errors = []
         self.current_function_return_type = None
+        self.loop_depth = 0 # Para validar break/continue
 
     def _err(self, line, col, msg):
         self.errors.append(f"[Error Semántico] Línea {line}, Columna {col}: {msg}")
 
     def _infer(self, ctx):
-        if isinstance(ctx, LanguageParser.IntContext):
+        if isinstance(ctx, Language_v3Parser.IntContext):
             return 'int'
 
-        if isinstance(ctx, LanguageParser.FloatExprContext):
+        if isinstance(ctx, Language_v3Parser.FloatExprContext):
             return 'float'
 
-        if isinstance(ctx, LanguageParser.StringExprContext):
+        if isinstance(ctx, Language_v3Parser.StringExprContext):
             return 'string'
 
-        if isinstance(ctx, LanguageParser.BoolExprContext):
+        if isinstance(ctx, Language_v3Parser.BoolExprContext):
             return 'bool'
 
-        if isinstance(ctx, LanguageParser.IdContext):
+        if isinstance(ctx, Language_v3Parser.IdContext):
             name = ctx.ID().getText()
             sym = self.symbol_table.lookup(name)
             if sym is None:
@@ -46,13 +43,13 @@ class SemanticVisitor(LanguageVisitor):
                 return None
             return sym['type']
 
-        if isinstance(ctx, LanguageParser.ParensContext):
+        if isinstance(ctx, Language_v3Parser.ParensContext):
             return self._infer(ctx.expr())
 
-        if isinstance(ctx, LanguageParser.MulDivContext):
+        if isinstance(ctx, Language_v3Parser.MulDivModContext):
             return self._infer_binary(ctx)
 
-        if isinstance(ctx, LanguageParser.AddSubContext):
+        if isinstance(ctx, Language_v3Parser.AddSubContext):
             lt = self._infer(ctx.left)
             rt = self._infer(ctx.right)
             op = ctx.op.text
@@ -67,8 +64,46 @@ class SemanticVisitor(LanguageVisitor):
 
             return self._check_numeric_compat(lt, rt, ctx.op)
 
-        if isinstance(ctx, LanguageParser.FunctionCallContext):
+        if isinstance(ctx, Language_v3Parser.FunctionCallContext):
             return self._check_call(ctx)
+
+        if isinstance(ctx, Language_v3Parser.ArrayAccessContext):
+            name = ctx.ID().getText()
+            sym = self.symbol_table.lookup(name)
+            if sym is None:
+                tok = ctx.ID().getSymbol()
+                self._err(tok.line, tok.column, f"Arreglo '{name}' no declarado.")
+                return None
+            if not sym.get('is_array'):
+                tok = ctx.ID().getSymbol()
+                self._err(tok.line, tok.column, f"La variable '{name}' no es un arreglo.")
+                return None
+            idx_type = self._infer(ctx.expr())
+            if idx_type != 'int':
+                self._err(ctx.expr().start.line, ctx.expr().start.column, 
+                          f"El índice del arreglo debe ser 'int', se encontró '{idx_type}'.")
+            return sym['element_type']
+
+        if isinstance(ctx, Language_v3Parser.ArrayLitContext):
+            exprs = ctx.expr()
+            if not exprs:
+                return 'void[]' # Arreglo vacío, tipo indeterminado hasta asignación
+            first_type = self._infer(exprs[0])
+            for i in range(1, len(exprs)):
+                t = self._infer(exprs[i])
+                if t != first_type:
+                    self._err(exprs[i].start.line, exprs[i].start.column,
+                              f"Inconsistencia de tipos en literal de arreglo: se esperaba '{first_type}' pero se encontró '{t}'.")
+            return f"{first_type}[]"
+
+        if isinstance(ctx, Language_v3Parser.ArrayNewContext):
+            idx_type = self._infer(ctx.expr())
+            if idx_type != 'int':
+                self._err(ctx.expr().start.line, ctx.expr().start.column, 
+                          f"El tamaño del arreglo debe ser 'int', se encontró '{idx_type}'.")
+            # El tipo base está en los tokens hijos (INT_R, FLOAT_R, etc.)
+            base_type = ctx.getChild(0).getText()
+            return f"{base_type}[]"
 
         return None
 
@@ -122,43 +157,49 @@ class SemanticVisitor(LanguageVisitor):
 
         return func['return_type']
 
-    def visitProgram(self, ctx):
+    def visitProgram(self, ctx: Language_v3Parser.ProgramContext):
         return self.visitChildren(ctx)
 
-    def visitDeclaration(self, ctx):
-        return self.visitChildren(ctx)
-
-    def visitStatement(self, ctx):
-        return self.visitChildren(ctx)
-
-    def visitType(self, ctx):
+    def visitImportStmt(self, ctx: Language_v3Parser.ImportStmtContext):
+        module_name = ctx.ID().getText()
+        self.symbol_table.add_import(module_name)
         return None
 
-    def visitArgsFunction(self, ctx: LanguageParser.ArgsFunctionContext):
-        return None  # Los parámetros se procesan en visitFunction
+    def visitDeclaration(self, ctx: Language_v3Parser.DeclarationContext):
+        return self.visitChildren(ctx)
 
-    # ── Declaraciones ────────────────────────────────────────────────────────
+    def visitStatement(self, ctx: Language_v3Parser.StatementContext):
+        return self.visitChildren(ctx)
 
-    def visitVariable(self, ctx: LanguageParser.VariableContext):
-        type_str = ctx.type_().getText()
+    def visitVarType(self, ctx: Language_v3Parser.VarTypeContext):
+        return None
+
+    def visitVariable(self, ctx: Language_v3Parser.VariableContext):
+        type_str = ctx.varType().getText()
         var_name = ctx.ID().getText()
         tok = ctx.ID().getSymbol()
-
-        # Solo validar tipo si hay inicializador (int x = expr;)
+        
+        is_array = type_str.endswith('[]')
+        
+        # Solo validar tipo si hay inicializador
         if ctx.expr():
             expr_type = self._infer(ctx.expr())
-            if expr_type is not None and expr_type != type_str:
-                self._err(tok.line, tok.column,
-                          f"Incompatibilidad de tipos. No se puede asignar "
-                          f"'{expr_type}' a '{type_str}'.")
+            if expr_type is not None:
+                # Caso especial: arreglo vacío [] compatible con cualquier T[]
+                if expr_type == 'void[]' and is_array:
+                    pass
+                elif expr_type != type_str:
+                    self._err(tok.line, tok.column,
+                              f"Incompatibilidad de tipos. No se puede asignar "
+                              f"'{expr_type}' a '{type_str}'.")
 
-        ok = self.symbol_table.declare(var_name, type_str, tok.line, tok.column)
+        ok = self.symbol_table.declare(var_name, type_str, is_array=is_array, line=tok.line, col=tok.column)
         if not ok:
             self._err(tok.line, tok.column,
                       f"Variable '{var_name}' ya declarada en este ámbito.")
         return None
 
-    def visitAssignment(self, ctx: LanguageParser.AssignmentContext):
+    def visitAssignment(self, ctx: Language_v3Parser.AssignmentContext):
         var_name = ctx.ID().getText()
         tok = ctx.ID().getSymbol()
 
@@ -169,72 +210,98 @@ class SemanticVisitor(LanguageVisitor):
             return None
 
         expr_type = self._infer(ctx.expr())
-        if expr_type is not None and expr_type != entry['type']:
-            self._err(tok.line, tok.column,
-                      f"Incompatibilidad de tipos. No se puede asignar "
-                      f"'{expr_type}' a '{entry['type']}'.")
+        
+        # Si es asignación a índice: ID '[' expr ']' '=' expr
+        if len(ctx.expr()) == 2:
+            if not entry.get('is_array'):
+                self._err(tok.line, tok.column, f"La variable '{var_name}' no es un arreglo.")
+            else:
+                idx_type = self._infer(ctx.expr(0))
+                val_type = self._infer(ctx.expr(1))
+                if idx_type != 'int':
+                    self._err(ctx.expr(0).start.line, ctx.expr(0).start.column, "El índice debe ser int.")
+                if val_type != entry['element_type']:
+                    self._err(tok.line, tok.column, 
+                              f"No se puede asignar '{val_type}' a un elemento de tipo '{entry['element_type']}'.")
+        else:
+            if expr_type is not None:
+                if expr_type == 'void[]' and entry.get('is_array'):
+                    pass
+                elif expr_type != entry['type']:
+                    self._err(tok.line, tok.column,
+                              f"Incompatibilidad de tipos. No se puede asignar "
+                              f"'{expr_type}' a '{entry['type']}'.")
         return None
 
-    def visitFunction(self, ctx: LanguageParser.FunctionContext):
-        return_type = ctx.type_().getText()
+    def visitFunction(self, ctx: Language_v3Parser.FunctionContext):
+        return_type = ctx.varType().getText()
         func_name = ctx.ID().getText()
         tok = ctx.ID().getSymbol()
 
-        # Recopilar parámetros
         params = []
         if ctx.argsFunction():
             af = ctx.argsFunction()
-            types = [t.getText() for t in af.type_()]
+            types = [t.getText() for t in af.varType()]
             names = [n.getText() for n in af.ID()]
             params = list(zip(types, names))
 
-        # Registrar función ANTES de procesar el cuerpo (permite recursividad)
         self.symbol_table.declare_function(func_name, return_type, params)
 
-        # Nuevo scope para los parámetros
         self.symbol_table.push_scope()
         for ptype, pname in params:
-            self.symbol_table.declare(pname, ptype)
+            self.symbol_table.declare(pname, ptype, is_array=ptype.endswith('[]'))
 
-        # Entrar al scope de la función y validar cuerpo
         prev_return_type = self.current_function_return_type
         self.current_function_return_type = return_type
 
-        self.visit(ctx.block())   # visitBlock() hace push/pop del body scope
+        self.visit(ctx.block())
 
         self.current_function_return_type = prev_return_type
         self.symbol_table.pop_scope()
         return None
 
-    # ── Bloques y control de flujo ────────────────────────────────────────────
-
-    def visitBlock(self, ctx: LanguageParser.BlockContext):
+    def visitBlock(self, ctx: Language_v3Parser.BlockContext):
         self.symbol_table.push_scope()
         self.visitChildren(ctx)
         self.symbol_table.pop_scope()
         return None
 
-    def visitConditional(self, ctx: LanguageParser.ConditionalContext):
+    def visitConditional(self, ctx: Language_v3Parser.ConditionalContext):
         self.visit(ctx.condition())
         for block in ctx.block():
             self.visit(block)
         return None
 
-    def visitWhileStmt(self, ctx: LanguageParser.WhileStmtContext):
+    def visitWhileStmt(self, ctx: Language_v3Parser.WhileStmtContext):
         self.visit(ctx.condition())
+        self.loop_depth += 1
         self.visit(ctx.block())
+        self.loop_depth -= 1
         return None
 
-    def visitForStmt(self, ctx: LanguageParser.ForStmtContext):
-        # Abrimos un scope para que la variable del init sea local al for
+    def visitForStmt(self, ctx: Language_v3Parser.ForStmtContext):
         self.symbol_table.push_scope()
+        self.loop_depth += 1
         self.visitChildren(ctx)
+        self.loop_depth -= 1
         self.symbol_table.pop_scope()
         return None
 
-    def visitReturnStmt(self, ctx: LanguageParser.ReturnStmtContext):
+    def visitBreakStmt(self, ctx: Language_v3Parser.BreakStmtContext):
+        if self.loop_depth == 0:
+            self._err(ctx.BREAK_R().getSymbol().line, ctx.BREAK_R().getSymbol().column,
+                      "La sentencia 'break' solo puede usarse dentro de un ciclo.")
+        return None
+
+    def visitContinueStmt(self, ctx: Language_v3Parser.ContinueStmtContext):
+        if self.loop_depth == 0:
+            self._err(ctx.CONTINUE_R().getSymbol().line, ctx.CONTINUE_R().getSymbol().column,
+                      "La sentencia 'continue' solo puede usarse dentro de un ciclo.")
+        return None
+
+    def visitReturnStmt(self, ctx: Language_v3Parser.ReturnStmtContext):
         if self.current_function_return_type is None:
-            return None  # return fuera de función (la gramática lo previene)
+            return None
 
         if ctx.expr():
             expr_type = self._infer(ctx.expr())
@@ -253,13 +320,11 @@ class SemanticVisitor(LanguageVisitor):
                           f"'{self.current_function_return_type}'.")
         return None
 
-    def visitPrintStmt(self, ctx: LanguageParser.PrintStmtContext):
-        self._infer(ctx.expr())  # Solo valida que la expresión sea válida
+    def visitPrintStmt(self, ctx: Language_v3Parser.PrintStmtContext):
+        self._infer(ctx.expr())
         return None
 
-    # ── Condiciones ───────────────────────────────────────────────────────────
-
-    def visitComparison(self, ctx: LanguageParser.ComparisonContext):
+    def visitComparison(self, ctx: Language_v3Parser.ComparisonContext):
         lt = self._infer(ctx.expr(0))
         rt = self._infer(ctx.expr(1))
         if lt is not None and rt is not None and lt != rt:
@@ -268,47 +333,58 @@ class SemanticVisitor(LanguageVisitor):
                       f"'{ctx.op.text}': '{lt}' y '{rt}'.")
         return None
 
-    def visitAndOr(self, ctx: LanguageParser.AndOrContext):
+    def visitAndOr(self, ctx: Language_v3Parser.AndOrContext):
         self.visit(ctx.condition(0))
         self.visit(ctx.condition(1))
         return None
 
-    def visitParensCond(self, ctx: LanguageParser.ParensCondContext):
+    def visitParensCond(self, ctx: Language_v3Parser.ParensCondContext):
         return self.visit(ctx.condition())
 
-    # ── Expresiones (delegamos a _infer que ya valida) ─────────────────────
-
-    def visitMulDiv(self, ctx: LanguageParser.MulDivContext):
+    def visitMulDivMod(self, ctx: Language_v3Parser.MulDivModContext):
         self._infer(ctx)
         return None
 
-    def visitAddSub(self, ctx: LanguageParser.AddSubContext):
+    def visitAddSub(self, ctx: Language_v3Parser.AddSubContext):
         self._infer(ctx)
         return None
 
-    def visitParens(self, ctx: LanguageParser.ParensContext):
+    def visitParens(self, ctx: Language_v3Parser.ParensContext):
         self._infer(ctx)
         return None
 
-    def visitFunctionCall(self, ctx: LanguageParser.FunctionCallContext):
+    def visitFunctionCall(self, ctx: Language_v3Parser.FunctionCallContext):
         self._infer(ctx)
         return None
 
-    def visitId(self, ctx: LanguageParser.IdContext):
+    def visitArrayAccess(self, ctx: Language_v3Parser.ArrayAccessContext):
         self._infer(ctx)
         return None
 
-    def visitInt(self, ctx: LanguageParser.IntContext):
+    def visitArrayLit(self, ctx: Language_v3Parser.ArrayLitContext):
+        self._infer(ctx)
         return None
 
-    def visitFloatExpr(self, ctx: LanguageParser.FloatExprContext):
+    def visitArrayNew(self, ctx: Language_v3Parser.ArrayNewContext):
+        self._infer(ctx)
         return None
 
-    def visitStringExpr(self, ctx: LanguageParser.StringExprContext):
+    def visitId(self, ctx: Language_v3Parser.IdContext):
+        self._infer(ctx)
         return None
 
-    def visitBoolExpr(self, ctx: LanguageParser.BoolExprContext):
+    def visitInt(self, ctx: Language_v3Parser.IntContext):
         return None
 
-    def visitArgs(self, ctx: LanguageParser.ArgsContext):
+    def visitFloatExpr(self, ctx: Language_v3Parser.FloatExprContext):
+        return None
+
+    def visitStringExpr(self, ctx: Language_v3Parser.StringExprContext):
+        return None
+
+    def visitBoolExpr(self, ctx: Language_v3Parser.BoolExprContext):
+        return None
+
+    def visitArgs(self, ctx: Language_v3Parser.ArgsContext):
         return self.visitChildren(ctx)
+
