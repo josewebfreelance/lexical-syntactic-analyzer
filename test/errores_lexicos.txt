@@ -1,0 +1,9 @@
+program errores_lexicos {
+    entero x = 5;
+
+    mientras (x > 0) {
+        x = x - 1;
+
+        pint(x);
+    }
+}
