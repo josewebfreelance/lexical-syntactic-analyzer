@@ -1,0 +1,34 @@
+program myProgram {
+    int x = 3;
+    string prefijo = "El resultado es: ";
+
+    // Declaración de función recursiva
+    int factorial(int n) {
+        if (n <= 1) {
+            return 1;
+        } else {
+            return n * factorial(n - 1);
+        }
+    }
+
+    // Uso de ciclos y scopes
+    while (x > 0) {
+        int temp = factorial(x);
+        print(prefijo);
+        print(temp);
+
+        x = x - 2;
+    }
+
+    // Test de constant folding: 2 + 3 debería optimizarse a 5
+    int resultado = 2 + 3;
+    print(resultado);
+
+    // Test de for
+    int suma = 0;
+    int i;
+    for (i = 1; i <= 5; i = i + 1) {
+        suma = suma + i;
+    }
+    print(suma);
+}
