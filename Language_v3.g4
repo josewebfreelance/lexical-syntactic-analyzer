@@ -1,7 +1,9 @@
-grammar Language;
+grammar Language_v3;
 
 // --- REGLAS SINTÁCTICAS ---
-program: PROGRAM_R ID BRACES (declaration | statement)* BRACEE;
+program: (importStmt)* PROGRAM_R ID BRACES (declaration | statement)* BRACEE;
+
+importStmt: IMPORT_R ID LINEE;
 
 // Permite 'int x;'
 declaration: variable | function | statement;
@@ -16,24 +18,31 @@ statement:
 	| forStmt
 	| printStmt LINEE
 	| returnStmt LINEE
+	| breakStmt LINEE
+	| continueStmt LINEE
 	| assignment LINEE;
 
-type: INT_R | FLOAT_R | STRING_R | BOOL_R | VOID_R;
+varType: (INT_R | FLOAT_R | STRING_R | BOOL_R | VOID_R) (BRACKETS)?;
 
-variable: type ID (ASSIGN expr)? LINEE;
+variable: varType ID (ASSIGN expr)? LINEE;
 
 // Permite múltiples argumentos separados por comas
-argsFunction: type ID (COMMA type ID)*;
-function: type ID (PARS argsFunction PARE) block;
+argsFunction: varType ID (COMMA varType ID)*;
+function: varType ID (PARS argsFunction PARE) block;
 
 conditional: IF_R PARS condition PARE block (ELSE_R block)?;
 whileStmt: WHILE_R PARS condition PARE block;
 forStmt:
-	FOR_R PARS (variable | assignment)? LINEE expr? LINEE assignment? PARE statement;
+	FOR_R PARS (variable | assignment)? LINEE (condition | expr)? LINEE assignment? PARE statement;
 printStmt: PRINT_R PARS expr PARE;
 returnStmt: RETURN_R expr?;
 
-assignment: ID ASSIGN expr;
+breakStmt: BREAK_R;
+continueStmt: CONTINUE_R;
+
+assignment: 
+	ID ASSIGN expr
+	| ID BRACKS expr BRACKE ASSIGN expr; // Asignación a índice de arreglo
 
 // Un bloque permite agrupar múltiples instrucciones entre llaves
 block: BRACES (declaration | statement)* BRACEE;
@@ -45,10 +54,13 @@ condition:
 
 // Expresiones con precedencia automática por orden de aparición
 expr:
-	left = expr op = (MUL | DIV) right = expr	# MulDiv
+	left = expr op = (MUL | DIV | MOD) right = expr	# MulDivMod
 	| left = expr op = (ADD | SUB) right = expr	# AddSub
 	| PARS expr PARE							# Parens
 	| ID PARS (args?) PARE						# FunctionCall
+	| ID BRACKS expr BRACKE						# ArrayAccess
+	| BRACKS (expr (COMMA expr)*)? BRACKE		# ArrayLit
+	| (INT_R | FLOAT_R | STRING_R | BOOL_R) BRACKS expr BRACKE # ArrayNew
 	| ID										# Id
 	| NUMBER									# Int
 	| FLOAT										# FloatExpr
@@ -59,6 +71,7 @@ args: expr (COMMA expr)*;
 
 // --- REGLAS LÉXICAS ---
 PROGRAM_R: 'program';
+IMPORT_R: 'import';
 INT_R: 'int';
 FLOAT_R: 'float';
 STRING_R: 'string';
@@ -70,6 +83,8 @@ WHILE_R: 'while';
 FOR_R: 'for';
 PRINT_R: 'print';
 RETURN_R: 'return';
+BREAK_R: 'break';
+CONTINUE_R: 'continue';
 ASSIGN: '=';
 LINEE: ';';
 COMMA: ',';
@@ -83,12 +98,16 @@ AND: '&&';
 OR: '||';
 MUL: '*';
 DIV: '/';
+MOD: '%';
 ADD: '+';
 SUB: '-';
 BRACES: '{';
 BRACEE: '}';
 PARS: '(';
 PARE: ')';
+BRACKETS: '[]';
+BRACKS: '[';
+BRACKE: ']';
 NUMBER: [0-9]+;
 FLOAT: [0-9]+ '.' [0-9]+;
 STRING: '"' (~["\r\n])* '"';
