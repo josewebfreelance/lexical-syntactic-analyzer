@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Language v3 — Compilador Interactivo</title>
+    <!-- CodeMirror 6 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/clike/clike.min.js"></script>
+    <style>
+        :root {
+            --bg: #1e1e1e;
+            --sidebar: #252526;
+            --accent: #007acc;
+            --text: #d4d4d4;
+            --success: #4ec9b0;
+            --error: #f48771;
+            --border: #333;
+        }
+
+        .CodeMirror-code span {
+            color: #fff;
+        }
+
+        .cm-keyword {
+            color: #cd86d7 !important;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        header {
+            background: var(--sidebar);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .editor-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border);
+        }
+
+        .output-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--sidebar);
+        }
+
+        .panel-header {
+            background: #2d2d2d;
+            padding: 5px 15px;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .CodeMirror {
+            flex: 1;
+            height: auto;
+            font-size: 14px;
+            background: var(--bg) !important;
+        }
+
+        .tabs {
+            display: flex;
+            background: #2d2d2d;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 0.85em;
+            border-right: 1px solid var(--border);
+            opacity: 0.7;
+        }
+
+        .tab.active {
+            background: var(--bg);
+            border-bottom: 2px solid var(--accent);
+            opacity: 1;
+        }
+
+        .tab-content {
+            flex: 1;
+            padding: 15px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Courier New', monospace;
+            white-space: pre-wrap;
+            font-size: 0.9em;
+        }
+
+        .phase-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .phase-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 10px;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+        }
+
+        .status-ok {
+            color: var(--success);
+        }
+
+        .status-error {
+            color: var(--error);
+        }
+
+        .error-card {
+            background: #3e2723;
+            border-left: 4px solid var(--error);
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .compile-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 20px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .compile-btn:hover {
+            background: #0062a3;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        pre {
+            margin: 0;
+        }
+    </style>
+</head>
+
+<body>
+    <header>
+        <div><strong>LANGUAGE v3</strong> COMPILADOR GRUPO 3</div>
+        <button class="compile-btn" id="compileBtn">COMPILAR</button>
+    </header>
+
+    <div class="main-container">
+        <div class="editor-section">
+            <div class="panel-header">Código Fuente</div>
+            <textarea id="codeEditor">
+</textarea>
+        </div>
+
+        <div class="output-section">
+            <div class="tabs">
+                <div class="tab active" data-target="fasesPanel">FASES</div>
+                <div class="tab" data-target="tacPanel">TAC</div>
+                <div class="tab" data-target="irPanel">LLVM IR</div>
+                <div class="tab" data-target="consolePanel">CONSOLA</div>
+                <div class="tab" data-target="irExecPanel">EJECUCIÓN IR</div>
+            </div>
+
+            <div id="fasesPanel" class="tab-content">
+                <div id="phasesResult">Presiona "Compilar" para ver el progreso.</div>
+                <div id="errorsResult" style="margin-top: 20px;"></div>
+            </div>
+
+            <div id="tacPanel" class="tab-content hidden">
+                <pre id="tacOutput"></pre>
+            </div>
+
+            <div id="irPanel" class="tab-content hidden">
+                <pre id="irOutput"></pre>
+            </div>
+
+            <div id="consolePanel" class="tab-content hidden">
+                <pre id="consoleOutput"></pre>
+            </div>
+
+            <div id="irExecPanel" class="tab-content hidden">
+                <pre id="irExecOutput"></pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Inicializar CodeMirror
+        const editor = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
+            lineNumbers: true,
+            mode: 'text/x-c++src',
+            theme: 'default'
+        });
+
+        // Manejo de Pestañas
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.target).classList.remove('hidden');
+            });
+        });
+
+        // Botón Compilar
+        document.getElementById('compileBtn').addEventListener('click', async () => {
+            const code = editor.getValue();
+            const btn = document.getElementById('compileBtn');
+            btn.disabled = true;
+            btn.innerText = 'COMPILANDO...';
+
+            try {
+                const response = await fetch('/compile', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
+                });
+                const data = await response.json();
+
+                renderResults(data);
+            } catch (err) {
+                alert('Error al conectar con el servidor.');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'COMPILAR';
+            }
+        });
+
+        function renderResults(data) {
+            // Render Fases
+            const phasesHtml = data.phases.map(p => `
+                <div class="phase-item">
+                    <span>${p.name}</span>
+                    <span class="${p.status === 'OK' ? 'status-ok' : 'status-error'}">
+                        ${p.status} (${p.time_ms}ms)
+                    </span>
+                </div>
+            `).join('');
+            document.getElementById('phasesResult').innerHTML = phasesHtml;
+
+            // Render Errores
+            let errorsHtml = '';
+            data.phases.forEach(p => {
+                if (p.errors && p.errors.length > 0) {
+                    p.errors.forEach(err => {
+                        errorsHtml += `
+                            <div class="error-card">
+                                <strong>Error ${err.type}</strong> [Línea ${err.line}, Columna ${err.column}]<br>
+                                ${err.msg}
+                            </div>
+                        `;
+                    });
+                }
+            });
+            document.getElementById('errorsResult').innerHTML = errorsHtml;
+
+            // Render Salidas
+            document.getElementById('tacOutput').innerText = data.tac_output || '';
+            document.getElementById('irOutput').innerText = data.ir_output || '';
+            document.getElementById('consoleOutput').innerText = data.console_output || '';
+            document.getElementById('irExecOutput').innerText = data.ir_exec_output || '';
+
+            // Cambiar a pestaña de errores si hubo falla, o consola si éxito
+            if (!data.success) {
+                document.querySelector('[data-target="fasesPanel"]').click();
+            } else {
+                // Si todo OK, quizás ir a consola
+            }
+        }
+    </script>
+</body>
+
+</html>
