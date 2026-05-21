@@ -6,7 +6,7 @@ program: (importStmt)* PROGRAM_R ID BRACES (declaration | statement)* BRACEE;
 importStmt: IMPORT_R ID LINEE;
 
 // Permite 'int x;'
-declaration: variable | function | statement;
+declaration: variable | function | structDecl | structVar | statement;
 
 // Un statement puede ser una asignación, un if, o un bloque de código
 statement:
@@ -16,10 +16,13 @@ statement:
 	| block
 	| whileStmt
 	| forStmt
+	| switchStmt
 	| printStmt LINEE
 	| returnStmt LINEE
 	| breakStmt LINEE
 	| continueStmt LINEE
+	| fieldAssign
+	| structVar
 	| assignment LINEE;
 
 varType: (INT_R | FLOAT_R | STRING_R | BOOL_R | VOID_R) (BRACKETS)?;
@@ -54,18 +57,23 @@ condition:
 
 // Expresiones con precedencia automática por orden de aparición
 expr:
-	left = expr op = (MUL | DIV | MOD) right = expr	# MulDivMod
-	| left = expr op = (ADD | SUB) right = expr	# AddSub
-	| PARS expr PARE							# Parens
-	| ID PARS (args?) PARE						# FunctionCall
-	| ID BRACKS expr BRACKE						# ArrayAccess
-	| BRACKS (expr (COMMA expr)*)? BRACKE		# ArrayLit
+	PARS varType PARE expr								# CastExpr
+	| left = expr op = (MUL | DIV | MOD) right = expr	# MulDivMod
+	| left = expr op = (ADD | SUB) right = expr			# AddSub
+	| expr op = (GT | LT | EQ | NE | GTE | LTE) expr QUESTION expr COLON expr	# TernaryCompare
+	| PARS condition PARE QUESTION expr COLON expr								# TernaryParensCond
+	| expr QUESTION expr COLON expr												# TernarySimple
+	| PARS expr PARE									# Parens
+	| ID PARS (args?) PARE								# FunctionCall
+	| fieldAccess										# StructFieldAccess
+	| ID BRACKS expr BRACKE								# ArrayAccess
+	| BRACKS (expr (COMMA expr)*)? BRACKE				# ArrayLit
 	| (INT_R | FLOAT_R | STRING_R | BOOL_R) BRACKS expr BRACKE # ArrayNew
-	| ID										# Id
-	| NUMBER									# Int
-	| FLOAT										# FloatExpr
-	| STRING									# StringExpr
-	| BOOL										# BoolExpr;
+	| ID												# Id
+	| NUMBER											# Int
+	| FLOAT												# FloatExpr
+	| STRING											# StringExpr
+	| BOOL												# BoolExpr;
 
 args: expr (COMMA expr)*;
 
