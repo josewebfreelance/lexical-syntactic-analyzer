@@ -1,4 +1,5 @@
-grammar Language_v3;
+//Branch Language_02
+grammar Language_v4;
 
 // --- REGLAS SINTÁCTICAS ---
 program: (importStmt)* PROGRAM_R ID BRACES (declaration | statement)* BRACEE;
@@ -76,6 +77,15 @@ expr:
 	| BOOL												# BoolExpr;
 
 args: expr (COMMA expr)*;
+// Nuevas reglas para v4
+switchStmt: SWITCH_R PARS expr PARE BRACES caseClause* defaultClause? BRACEE;
+caseClause: CASE_R expr COLON statement* (breakStmt LINEE)?;
+defaultClause: DEFAULT_R COLON statement*;
+
+structDecl  : STRUCT_R ID BRACES (varType ID LINEE)+ BRACEE LINEE;
+structVar   : ID ID (ASSIGN expr)? LINEE;
+fieldAccess : ID DOT ID;
+fieldAssign : ID DOT ID ASSIGN expr LINEE;
 
 // --- REGLAS LÉXICAS ---
 PROGRAM_R: 'program';
@@ -116,6 +126,15 @@ PARE: ')';
 BRACKETS: '[]';
 BRACKS: '[';
 BRACKE: ']';
+
+SWITCH_R  : 'switch';
+CASE_R    : 'case';
+DEFAULT_R : 'default';
+COLON     : ':';
+QUESTION  : '?';
+STRUCT_R  : 'struct';
+DOT       : '.';
+
 NUMBER: [0-9]+;
 FLOAT: [0-9]+ '.' [0-9]+;
 STRING: '"' (~["\r\n])* '"';
