@@ -1,13 +1,15 @@
 """
 pipeline.py
 -----------
-Orquesta las 6 fases del compilador v3:
+Orquesta las 8 fases del compilador v4:
 1. Léxico
 2. Sintáctico
 3. Semántico
 4. TAC (Generación de Código Intermedio)
 5. LLVM IR (Generación de Código)
 6. Ejecución (Intérprete + Ejecución de IR)
+7. Optimización O3
+8. Generación de Binarios
 """
 
 import time
@@ -17,12 +19,14 @@ import subprocess
 from antlr4 import *
 from antlr4.error.ErrorListener import ErrorListener
 
-from Language_v3Lexer import Language_v3Lexer
-from Language_v3Parser import Language_v3Parser
+from Language_v4Lexer import Language_v4Lexer
+from Language_v4Parser import Language_v4Parser
 from semantic_visitor import SemanticVisitor
 from interpreter import Interpreter
 from tac_generator import TACGenerator
 from ir_generator import IRGenerator
+from optimizer import optimize_ir
+from binary_generator import generate_binary
 
 
 class LexerErrorListener(ErrorListener):
@@ -55,7 +59,7 @@ class ParserErrorListener(ErrorListener):
         })
 
 
-def run_pipeline(source_code: str, is_file=True):
+def run_pipeline(source_code: str, is_file=True, target_linux=False, target_windows=False):
     start_total = time.perf_counter()
     results = {
         "phases": [],
@@ -63,6 +67,9 @@ def run_pipeline(source_code: str, is_file=True):
         "ir_output": "",
         "console_output": "",
         "ir_exec_output": "",
+        "optimized_ir": "",
+        "opt_metrics": {},
+        "binary_result": {},
         "success": True
     }
 
@@ -82,7 +89,7 @@ def run_pipeline(source_code: str, is_file=True):
 
     # 2. FASE LÉXICA ──────────────────────────────────────────────────────────
     start = time.perf_counter()
-    lexer = Language_v3Lexer(input_stream)
+    lexer = Language_v4Lexer(input_stream)
     lexer_errors = LexerErrorListener()
     lexer.removeErrorListeners()
     lexer.addErrorListener(lexer_errors)
@@ -99,7 +106,7 @@ def run_pipeline(source_code: str, is_file=True):
 
     # 3. FASE SINTÁCTICA ───────────────────────────────────────────────────────
     start = time.perf_counter()
-    parser = Language_v3Parser(token_stream)
+    parser = Language_v4Parser(token_stream)
     parser_errors = ParserErrorListener()
     parser.removeErrorListeners()
     parser.addErrorListener(parser_errors)
@@ -191,5 +198,27 @@ def run_pipeline(source_code: str, is_file=True):
         results["ir_exec_output"] = "Error: 'lli' o 'llvm-as' no encontrado en el sistema."
     except Exception as e:
         results["ir_exec_output"] = f"Error al ejecutar IR: {e}"
+
+    # 9. FASE OPTIMIZACIÓN O3 ─────────────────────────────────────────────────────
+    start = time.perf_counter()
+    opt_result = optimize_ir(results["ir_output"])
+    results["optimized_ir"] = opt_result["optimized_ir"]
+    results["opt_metrics"] = opt_result["metrics"]
+
+    with open("output.opt.ll", "w") as f:
+        f.write(results["optimized_ir"])
+
+    opt_duration = time.perf_counter() - start
+    add_phase("Optimización O3", "OK", opt_duration)
+
+    # 10. FASE GENERACIÓN BINARIO ──────────────────────────────────────────────────
+    if target_linux or target_windows:
+        start = time.perf_counter()
+        bin_result = generate_binary(results["optimized_ir"], target_linux, target_windows)
+        results["binary_result"] = bin_result
+        bin_duration = time.perf_counter() - start
+        add_phase("Generación Binario", "OK", bin_duration)
+    else:
+        results["binary_result"] = {}
 
     return results
