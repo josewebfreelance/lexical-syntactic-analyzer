@@ -84,3 +84,16 @@ class SymbolTable:
             self.declare_function("abs", "int", [("int", "n")])
             self.declare_function("pow", "float", [("float", "base"), ("float", "exp")])
             self.declare_function("sqrt", "float", [("float", "n")])
+
+# ── Structs ──────────────────────────────────────────────────────────────
+
+    def declare_struct(self, name, fields):
+        """
+        Declara un struct.
+        fields: diccionario {field_name: field_type}
+        """
+        self.structs[name] = {"fields": fields}
+
+    def lookup_struct(self, name):
+        """Retorna el descriptor de struct o None si no existe."""
+        return self.structs.get(name)
