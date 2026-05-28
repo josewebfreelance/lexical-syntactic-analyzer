@@ -6,6 +6,8 @@ class SymbolTable:
         self.functions = {}
         # Módulos importados
         self.imported_modules = set()
+        # Registro de structs: name -> {fields: {field_name: field_type}}
+        self.structs = {}
 
     # ── Manejo de scopes ─────────────────────────────────────────────────────
 
@@ -23,6 +25,7 @@ class SymbolTable:
         Declara variable en el scope actual.
         is_array: bool
         array_size: int o None (si es dinámico o literal)
+        is_struct: bool
         """
         if name in self.scopes[-1]:
             return False
@@ -34,6 +37,7 @@ class SymbolTable:
             "element_type": element_type,
             "is_array": is_array,
             "array_size": array_size,
+            "is_struct": is_struct,
             "value": None
         }
         return True
@@ -80,3 +84,23 @@ class SymbolTable:
             self.declare_function("abs", "int", [("int", "n")])
             self.declare_function("pow", "float", [("float", "base"), ("float", "exp")])
             self.declare_function("sqrt", "float", [("float", "n")])
+
+── Structs ──────────────────────────────────────────────────────────────
+
+    def declare_struct(self, name, fields):
+        """
+        Declara un struct.
+        fields: diccionario {field_name: field_type}
+        """
+        self.structs[name] = {"fields": fields}
+
+    def lookup_struct(self, name):
+        """Retorna el descriptor de struct o None si no existe."""
+        return self.structs.get(name)
+    
+    def get_struct_field_type(self, struct_name, field_name):
+        """Retorna el tipo de un campo de un struct o None si no existe."""
+        struct = self.lookup_struct(struct_name)
+        if struct and field_name in struct["fields"]:
+            return struct["fields"][field_name]
+        return None
