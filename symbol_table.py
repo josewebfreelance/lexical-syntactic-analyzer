@@ -6,6 +6,8 @@ class SymbolTable:
         self.functions = {}
         # Módulos importados
         self.imported_modules = set()
+         # Registro de structs: name -> {fields: {field_name: field_type}}
+        self.structs = {}
 
     # ── Manejo de scopes ─────────────────────────────────────────────────────
 
@@ -23,6 +25,7 @@ class SymbolTable:
         Declara variable en el scope actual.
         is_array: bool
         array_size: int o None (si es dinámico o literal)
+        is_struct: bool
         """
         if name in self.scopes[-1]:
             return False
@@ -34,6 +37,7 @@ class SymbolTable:
             "element_type": element_type,
             "is_array": is_array,
             "array_size": array_size,
+            "is_struct": is_struct,
             "value": None
         }
         return True
