@@ -5,12 +5,12 @@ Visitor de VALIDACIÓN de tipos para Fase 3 (v3).
 Soporta arreglos, módulo, break/continue e imports.
 """
 
-from Language_v3Visitor import Language_v3Visitor
-from Language_v3Parser import Language_v3Parser
+from Language_v4Visitor import Language_v4Visitor
+from Language_v4Parser import Language_v4Parser
 from symbol_table import SymbolTable
 
 
-class SemanticVisitor(Language_v3Visitor):
+class SemanticVisitor(Language_v4Visitor):
 
     def __init__(self):
         self.symbol_table = SymbolTable()
@@ -22,19 +22,19 @@ class SemanticVisitor(Language_v3Visitor):
         self.errors.append(f"[Error Semántico] Línea {line}, Columna {col}: {msg}")
 
     def _infer(self, ctx):
-        if isinstance(ctx, Language_v3Parser.IntContext):
+        if isinstance(ctx, Language_v4Parser.IntContext):
             return 'int'
 
-        if isinstance(ctx, Language_v3Parser.FloatExprContext):
+        if isinstance(ctx, Language_v4Parser.FloatExprContext):
             return 'float'
 
-        if isinstance(ctx, Language_v3Parser.StringExprContext):
+        if isinstance(ctx, Language_v4Parser.StringExprContext):
             return 'string'
 
-        if isinstance(ctx, Language_v3Parser.BoolExprContext):
+        if isinstance(ctx, Language_v4Parser.BoolExprContext):
             return 'bool'
 
-        if isinstance(ctx, Language_v3Parser.IdContext):
+        if isinstance(ctx, Language_v4Parser.IdContext):
             name = ctx.ID().getText()
             sym = self.symbol_table.lookup(name)
             if sym is None:
@@ -43,13 +43,13 @@ class SemanticVisitor(Language_v3Visitor):
                 return None
             return sym['type']
 
-        if isinstance(ctx, Language_v3Parser.ParensContext):
+        if isinstance(ctx, Language_v4Parser.ParensContext):
             return self._infer(ctx.expr())
 
-        if isinstance(ctx, Language_v3Parser.MulDivModContext):
+        if isinstance(ctx, Language_v4Parser.MulDivModContext):
             return self._infer_binary(ctx)
 
-        if isinstance(ctx, Language_v3Parser.AddSubContext):
+        if isinstance(ctx, Language_v4Parser.AddSubContext):
             lt = self._infer(ctx.left)
             rt = self._infer(ctx.right)
             op = ctx.op.text
@@ -64,10 +64,10 @@ class SemanticVisitor(Language_v3Visitor):
 
             return self._check_numeric_compat(lt, rt, ctx.op)
 
-        if isinstance(ctx, Language_v3Parser.FunctionCallContext):
+        if isinstance(ctx, Language_v4Parser.FunctionCallContext):
             return self._check_call(ctx)
 
-        if isinstance(ctx, Language_v3Parser.ArrayAccessContext):
+        if isinstance(ctx, Language_v4Parser.ArrayAccessContext):
             name = ctx.ID().getText()
             sym = self.symbol_table.lookup(name)
             if sym is None:
@@ -84,7 +84,7 @@ class SemanticVisitor(Language_v3Visitor):
                           f"El índice del arreglo debe ser 'int', se encontró '{idx_type}'.")
             return sym['element_type']
 
-        if isinstance(ctx, Language_v3Parser.ArrayLitContext):
+        if isinstance(ctx, Language_v4Parser.ArrayLitContext):
             exprs = ctx.expr()
             if not exprs:
                 return 'void[]' # Arreglo vacío, tipo indeterminado hasta asignación
@@ -96,7 +96,7 @@ class SemanticVisitor(Language_v3Visitor):
                               f"Inconsistencia de tipos en literal de arreglo: se esperaba '{first_type}' pero se encontró '{t}'.")
             return f"{first_type}[]"
 
-        if isinstance(ctx, Language_v3Parser.ArrayNewContext):
+        if isinstance(ctx, Language_v4Parser.ArrayNewContext):
             idx_type = self._infer(ctx.expr())
             if idx_type != 'int':
                 self._err(ctx.expr().start.line, ctx.expr().start.column, 
@@ -104,6 +104,18 @@ class SemanticVisitor(Language_v3Visitor):
             # El tipo base está en los tokens hijos (INT_R, FLOAT_R, etc.)
             base_type = ctx.getChild(0).getText()
             return f"{base_type}[]"
+
+        if isinstance(ctx, Language_v4Parser.StructFieldAccessContext):
+            return self.visitFieldAccess(ctx)
+
+        if isinstance(ctx, Language_v4Parser.TernaryCompareContext):
+            return self._infer_ternary(ctx)
+
+        if isinstance(ctx, Language_v4Parser.TernaryParensCondContext):
+            return self._infer_ternary_parens(ctx)
+
+        if isinstance(ctx, Language_v4Parser.TernarySimpleContext):
+            return self._infer_ternary_simple(ctx)
 
         return None
 
@@ -157,24 +169,70 @@ class SemanticVisitor(Language_v3Visitor):
 
         return func['return_type']
 
-    def visitProgram(self, ctx: Language_v3Parser.ProgramContext):
+    def _infer_ternary(self, ctx):
+        # expr op = (GT | LT | EQ | NE | GTE | LTE) expr QUESTION expr COLON expr
+        cond_type = self._infer(ctx.expr(0))
+        self._infer(ctx.expr(1))  # Validate left comparison operand
+        true_type = self._infer(ctx.expr(2))
+        false_type = self._infer(ctx.expr(3))
+        
+        # The condition should be a comparison that results in bool (or int for compatibility)
+        # We don't strictly enforce bool here for flexibility
+        
+        # Both branches should have the same type
+        if true_type is not None and false_type is not None and true_type != false_type:
+            self._err(ctx.start.line, ctx.start.column,
+                      f"Incompatibilidad de tipos en operador ternario: '{true_type}' y '{false_type}'.")
+            return None
+        
+        return true_type or false_type
+
+    def _infer_ternary_parens(self, ctx):
+        # PARS condition PARE QUESTION expr COLON expr
+        self.visit(ctx.condition())
+        true_type = self._infer(ctx.expr(0))
+        false_type = self._infer(ctx.expr(1))
+        
+        # Both branches should have the same type
+        if true_type is not None and false_type is not None and true_type != false_type:
+            self._err(ctx.start.line, ctx.start.column,
+                      f"Incompatibilidad de tipos en operador ternario: '{true_type}' y '{false_type}'.")
+            return None
+        
+        return true_type or false_type
+
+    def _infer_ternary_simple(self, ctx):
+        # expr QUESTION expr COLON expr
+        cond_type = self._infer(ctx.expr(0))
+        true_type = self._infer(ctx.expr(1))
+        false_type = self._infer(ctx.expr(2))
+        
+        # Both branches should have the same type
+        if true_type is not None and false_type is not None and true_type != false_type:
+            self._err(ctx.start.line, ctx.start.column,
+                      f"Incompatibilidad de tipos en operador ternario: '{true_type}' y '{false_type}'.")
+            return None
+        
+        return true_type or false_type
+
+    def visitProgram(self, ctx: Language_v4Parser.ProgramContext):
         return self.visitChildren(ctx)
 
-    def visitImportStmt(self, ctx: Language_v3Parser.ImportStmtContext):
+    def visitImportStmt(self, ctx: Language_v4Parser.ImportStmtContext):
         module_name = ctx.ID().getText()
         self.symbol_table.add_import(module_name)
         return None
 
-    def visitDeclaration(self, ctx: Language_v3Parser.DeclarationContext):
+    def visitDeclaration(self, ctx: Language_v4Parser.DeclarationContext):
         return self.visitChildren(ctx)
 
-    def visitStatement(self, ctx: Language_v3Parser.StatementContext):
+    def visitStatement(self, ctx: Language_v4Parser.StatementContext):
         return self.visitChildren(ctx)
 
-    def visitVarType(self, ctx: Language_v3Parser.VarTypeContext):
+    def visitVarType(self, ctx: Language_v4Parser.VarTypeContext):
         return None
 
-    def visitVariable(self, ctx: Language_v3Parser.VariableContext):
+    def visitVariable(self, ctx: Language_v4Parser.VariableContext):
         type_str = ctx.varType().getText()
         var_name = ctx.ID().getText()
         tok = ctx.ID().getSymbol()
@@ -199,7 +257,7 @@ class SemanticVisitor(Language_v3Visitor):
                       f"Variable '{var_name}' ya declarada en este ámbito.")
         return None
 
-    def visitAssignment(self, ctx: Language_v3Parser.AssignmentContext):
+    def visitAssignment(self, ctx: Language_v4Parser.AssignmentContext):
         var_name = ctx.ID().getText()
         tok = ctx.ID().getSymbol()
 
@@ -233,7 +291,7 @@ class SemanticVisitor(Language_v3Visitor):
                               f"'{expr_type}' a '{entry['type']}'.")
         return None
 
-    def visitFunction(self, ctx: Language_v3Parser.FunctionContext):
+    def visitFunction(self, ctx: Language_v4Parser.FunctionContext):
         return_type = ctx.varType().getText()
         func_name = ctx.ID().getText()
         tok = ctx.ID().getSymbol()
@@ -260,26 +318,26 @@ class SemanticVisitor(Language_v3Visitor):
         self.symbol_table.pop_scope()
         return None
 
-    def visitBlock(self, ctx: Language_v3Parser.BlockContext):
+    def visitBlock(self, ctx: Language_v4Parser.BlockContext):
         self.symbol_table.push_scope()
         self.visitChildren(ctx)
         self.symbol_table.pop_scope()
         return None
 
-    def visitConditional(self, ctx: Language_v3Parser.ConditionalContext):
+    def visitConditional(self, ctx: Language_v4Parser.ConditionalContext):
         self.visit(ctx.condition())
         for block in ctx.block():
             self.visit(block)
         return None
 
-    def visitWhileStmt(self, ctx: Language_v3Parser.WhileStmtContext):
+    def visitWhileStmt(self, ctx: Language_v4Parser.WhileStmtContext):
         self.visit(ctx.condition())
         self.loop_depth += 1
         self.visit(ctx.block())
         self.loop_depth -= 1
         return None
 
-    def visitForStmt(self, ctx: Language_v3Parser.ForStmtContext):
+    def visitForStmt(self, ctx: Language_v4Parser.ForStmtContext):
         self.symbol_table.push_scope()
         self.loop_depth += 1
         self.visitChildren(ctx)
@@ -287,19 +345,19 @@ class SemanticVisitor(Language_v3Visitor):
         self.symbol_table.pop_scope()
         return None
 
-    def visitBreakStmt(self, ctx: Language_v3Parser.BreakStmtContext):
+    def visitBreakStmt(self, ctx: Language_v4Parser.BreakStmtContext):
         if self.loop_depth == 0:
             self._err(ctx.BREAK_R().getSymbol().line, ctx.BREAK_R().getSymbol().column,
                       "La sentencia 'break' solo puede usarse dentro de un ciclo.")
         return None
 
-    def visitContinueStmt(self, ctx: Language_v3Parser.ContinueStmtContext):
+    def visitContinueStmt(self, ctx: Language_v4Parser.ContinueStmtContext):
         if self.loop_depth == 0:
             self._err(ctx.CONTINUE_R().getSymbol().line, ctx.CONTINUE_R().getSymbol().column,
                       "La sentencia 'continue' solo puede usarse dentro de un ciclo.")
         return None
 
-    def visitReturnStmt(self, ctx: Language_v3Parser.ReturnStmtContext):
+    def visitReturnStmt(self, ctx: Language_v4Parser.ReturnStmtContext):
         if self.current_function_return_type is None:
             return None
 
@@ -320,11 +378,11 @@ class SemanticVisitor(Language_v3Visitor):
                           f"'{self.current_function_return_type}'.")
         return None
 
-    def visitPrintStmt(self, ctx: Language_v3Parser.PrintStmtContext):
+    def visitPrintStmt(self, ctx: Language_v4Parser.PrintStmtContext):
         self._infer(ctx.expr())
         return None
 
-    def visitComparison(self, ctx: Language_v3Parser.ComparisonContext):
+    def visitComparison(self, ctx: Language_v4Parser.ComparisonContext):
         lt = self._infer(ctx.expr(0))
         rt = self._infer(ctx.expr(1))
         if lt is not None and rt is not None and lt != rt:
@@ -333,58 +391,174 @@ class SemanticVisitor(Language_v3Visitor):
                       f"'{ctx.op.text}': '{lt}' y '{rt}'.")
         return None
 
-    def visitAndOr(self, ctx: Language_v3Parser.AndOrContext):
+    def visitAndOr(self, ctx: Language_v4Parser.AndOrContext):
         self.visit(ctx.condition(0))
         self.visit(ctx.condition(1))
         return None
 
-    def visitParensCond(self, ctx: Language_v3Parser.ParensCondContext):
+    def visitParensCond(self, ctx: Language_v4Parser.ParensCondContext):
         return self.visit(ctx.condition())
 
-    def visitMulDivMod(self, ctx: Language_v3Parser.MulDivModContext):
+    def visitMulDivMod(self, ctx: Language_v4Parser.MulDivModContext):
         self._infer(ctx)
         return None
 
-    def visitAddSub(self, ctx: Language_v3Parser.AddSubContext):
+    def visitAddSub(self, ctx: Language_v4Parser.AddSubContext):
         self._infer(ctx)
         return None
 
-    def visitParens(self, ctx: Language_v3Parser.ParensContext):
+    def visitParens(self, ctx: Language_v4Parser.ParensContext):
         self._infer(ctx)
         return None
 
-    def visitFunctionCall(self, ctx: Language_v3Parser.FunctionCallContext):
+    def visitFunctionCall(self, ctx: Language_v4Parser.FunctionCallContext):
         self._infer(ctx)
         return None
 
-    def visitArrayAccess(self, ctx: Language_v3Parser.ArrayAccessContext):
+    def visitArrayAccess(self, ctx: Language_v4Parser.ArrayAccessContext):
         self._infer(ctx)
         return None
 
-    def visitArrayLit(self, ctx: Language_v3Parser.ArrayLitContext):
+    def visitArrayLit(self, ctx: Language_v4Parser.ArrayLitContext):
         self._infer(ctx)
         return None
 
-    def visitArrayNew(self, ctx: Language_v3Parser.ArrayNewContext):
+    def visitArrayNew(self, ctx: Language_v4Parser.ArrayNewContext):
         self._infer(ctx)
         return None
 
-    def visitId(self, ctx: Language_v3Parser.IdContext):
+    def visitId(self, ctx: Language_v4Parser.IdContext):
         self._infer(ctx)
         return None
 
-    def visitInt(self, ctx: Language_v3Parser.IntContext):
+    def visitInt(self, ctx: Language_v4Parser.IntContext):
         return None
 
-    def visitFloatExpr(self, ctx: Language_v3Parser.FloatExprContext):
+    def visitFloatExpr(self, ctx: Language_v4Parser.FloatExprContext):
         return None
 
-    def visitStringExpr(self, ctx: Language_v3Parser.StringExprContext):
+    def visitStringExpr(self, ctx: Language_v4Parser.StringExprContext):
         return None
 
-    def visitBoolExpr(self, ctx: Language_v3Parser.BoolExprContext):
+    def visitBoolExpr(self, ctx: Language_v4Parser.BoolExprContext):
         return None
 
-    def visitArgs(self, ctx: Language_v3Parser.ArgsContext):
+    def visitArgs(self, ctx: Language_v4Parser.ArgsContext):
         return self.visitChildren(ctx)
 
+    # ── Structs ──────────────────────────────────────────────────────────────
+
+    def visitStructDecl(self, ctx: Language_v4Parser.StructDeclContext):
+        struct_name = ctx.ID(0).getText()
+        tok = ctx.ID(0).getSymbol()
+        
+        # Check if struct already declared
+        if self.symbol_table.lookup_struct(struct_name):
+            self._err(tok.line, tok.column, f"Struct '{struct_name}' ya declarado.")
+            return None
+        
+        # Collect field types and names
+        fields = {}
+        for i in range(1, len(ctx.ID())):
+            field_type = ctx.varType(i-1).getText()
+            field_name = ctx.ID(i).getText()
+            fields[field_name] = field_type
+        
+        self.symbol_table.declare_struct(struct_name, fields)
+        return None
+
+    def visitStructVar(self, ctx: Language_v4Parser.StructVarContext):
+        struct_type = ctx.ID(0).getText()
+        var_name = ctx.ID(1).getText()
+        tok = ctx.ID(1).getSymbol()
+        
+        # Check if struct type exists
+        if not self.symbol_table.lookup_struct(struct_type):
+            self._err(tok.line, tok.column, f"Struct '{struct_type}' no declarado.")
+            return None
+        
+        # Declare the struct variable
+        ok = self.symbol_table.declare(var_name, struct_type, is_struct=True, line=tok.line, col=tok.column)
+        if not ok:
+            self._err(tok.line, tok.column, f"Variable '{var_name}' ya declarada en este ámbito.")
+        
+        # Validate initializer if present
+        if ctx.expr():
+            expr_type = self._infer(ctx.expr())
+            if expr_type is not None and expr_type != struct_type:
+                self._err(tok.line, tok.column,
+                          f"Incompatibilidad de tipos. No se puede asignar "
+                          f"'{expr_type}' a '{struct_type}'.")
+        return None
+
+    def visitFieldAccess(self, ctx: Language_v4Parser.FieldAccessContext):
+        var_name = ctx.ID(0).getText()
+        field_name = ctx.ID(1).getText()
+        tok = ctx.ID(0).getSymbol()
+        
+        # Check if variable exists
+        var_entry = self.symbol_table.lookup(var_name)
+        if var_entry is None:
+            self._err(tok.line, tok.column, f"Variable '{var_name}' no declarada.")
+            return None
+        
+        # Check if variable is a struct
+        if not var_entry.get('is_struct', False):
+            self._err(tok.line, tok.column, f"La variable '{var_name}' no es un struct.")
+            return None
+        
+        # Check if struct type exists
+        struct_type = var_entry['type']
+        field_type = self.symbol_table.get_struct_field_type(struct_type, field_name)
+        if field_type is None:
+            self._err(tok.line, tok.column, 
+                      f"El struct '{struct_type}' no tiene un campo '{field_name}'.")
+            return None
+        
+        return field_type
+
+    def visitFieldAssign(self, ctx: Language_v4Parser.FieldAssignContext):
+        var_name = ctx.ID(0).getText()
+        field_name = ctx.ID(1).getText()
+        tok = ctx.ID(0).getSymbol()
+        
+        # Check if variable exists
+        var_entry = self.symbol_table.lookup(var_name)
+        if var_entry is None:
+            self._err(tok.line, tok.column, f"Variable '{var_name}' no declarada.")
+            return None
+        
+        # Check if variable is a struct
+        if not var_entry.get('is_struct', False):
+            self._err(tok.line, tok.column, f"La variable '{var_name}' no es un struct.")
+            return None
+        
+        # Check if struct type exists and has the field
+        struct_type = var_entry['type']
+        field_type = self.symbol_table.get_struct_field_type(struct_type, field_name)
+        if field_type is None:
+            self._err(tok.line, tok.column, 
+                      f"El struct '{struct_type}' no tiene un campo '{field_name}'.")
+            return None
+        
+        # Validate the expression type
+        expr_type = self._infer(ctx.expr())
+        if expr_type is not None and expr_type != field_type:
+            self._err(tok.line, tok.column,
+                      f"Incompatibilidad de tipos. No se puede asignar "
+                      f"'{expr_type}' a '{field_type}'.")
+        return None
+
+    # ── Ternary Operators ──────────────────────────────────────────────────────────────
+
+    def visitTernaryCompare(self, ctx: Language_v4Parser.TernaryCompareContext):
+        self._infer_ternary(ctx)
+        return None
+
+    def visitTernaryParensCond(self, ctx: Language_v4Parser.TernaryParensCondContext):
+        self._infer_ternary_parens(ctx)
+        return None
+
+    def visitTernarySimple(self, ctx: Language_v4Parser.TernarySimpleContext):
+        self._infer_ternary_simple(ctx)
+        return None
