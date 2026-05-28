@@ -97,3 +97,10 @@ class SymbolTable:
     def lookup_struct(self, name):
         """Retorna el descriptor de struct o None si no existe."""
         return self.structs.get(name)
+    
+    def get_struct_field_type(self, struct_name, field_name):
+        """Retorna el tipo de un campo de un struct o None si no existe."""
+        struct = self.lookup_struct(struct_name)
+        if struct and field_name in struct["fields"]:
+            return struct["fields"][field_name]
+        return None
