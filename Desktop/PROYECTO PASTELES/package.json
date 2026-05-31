@@ -4,8 +4,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node server.js",
-    "preview": "vite preview"
+    "build": "echo 'no build'",
+    "preview": "vite preview",
+    "start": "node server.js"
   },
   "dependencies": {
     "cors": "^2.8.5",

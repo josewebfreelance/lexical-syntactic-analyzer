@@ -1,0 +1,28 @@
+program ErrorSemantico {
+    int a = 10;
+    string b = "Error";
+    
+    a = b; // Incompatibilidad: no se puede asignar string a int
+    
+    int c = d + 5; // d no declarada
+    
+    int a = 20; // Redeclaración de 'a' en el mismo ámbito
+
+    void miFuncion() {
+        return "Hola"; // Función void no debe retornar valor (o tipo incorrecto)
+    }
+
+    int suma(int x, int y) {
+        return x + y;
+    }
+
+    suma(10); // Número de argumentos incorrecto
+
+    break; // Break fuera de un ciclo
+
+    int noArreglo = 5;
+    print(noArreglo[0]); // Intento de acceso a arreglo en variable que no lo es
+    
+    int[] miLista = [1, 2, 3];
+    miLista[3.5] = 10; // Índice de arreglo debe ser int
+}
