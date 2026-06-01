@@ -34,6 +34,7 @@ class Interpreter(Language_v4Visitor):
             "sqrt": lambda n: math.sqrt(n)
         }
         self.functions: dict = {}
+        self.struct_defs: dict = {}
         self.call_stack: list[dict] = []
 
     # ── Manejo de variables ──────────────────────────────────────────────────
@@ -283,6 +284,41 @@ class Interpreter(Language_v4Visitor):
         defaults = {'int': 0, 'float': 0.0, 'string': '', 'bool': False}
         return [defaults.get(base_type, None)] * size
 
+# ── convierte un valor a un tipo ─────────────────────────────────────────────────────
+
+    def visitCastExpr(self, ctx: Language_v4Parser.CastExprContext):
+        value = self.visit(ctx.expr())
+        target_type = ctx.varType().getText().replace('[]', '')
+        casts = {
+            'int': int,
+            'float': float,
+            'string': str,
+            'bool': bool,
+        }
+        return casts.get(target_type, lambda v: v)(value)
+
+    def visitTernaryCompare(self, ctx: Language_v4Parser.TernaryCompareContext):
+        left = self.visit(ctx.expr(0))
+        right = self.visit(ctx.expr(1))
+        op = ctx.op.text
+        cond = {
+            '>': left > right,
+            '<': left < right,
+            '==': left == right,
+            '!=': left != right,
+            '>=': left >= right,
+            '<=': left <= right,
+        }.get(op, False)
+        return self.visit(ctx.expr(2)) if cond else self.visit(ctx.expr(3))
+
+    def visitTernaryParensCond(self, ctx: Language_v4Parser.TernaryParensCondContext):
+        return self.visit(ctx.expr(0)) if self.visit(ctx.condition()) else self.visit(ctx.expr(1))
+
+    def visitTernarySimple(self, ctx: Language_v4Parser.TernarySimpleContext):
+        return self.visit(ctx.expr(1)) if self.visit(ctx.expr(0)) else self.visit(ctx.expr(2))
+
+
+
     def visitId(self, ctx: Language_v4Parser.IdContext):
         return self._lookup_var(ctx.ID().getText())
 
@@ -301,3 +337,72 @@ class Interpreter(Language_v4Visitor):
 
     def visitArgs(self, ctx: Language_v4Parser.ArgsContext):
         return [self.visit(e) for e in ctx.expr()]
+
+
+# ── Structs y switch ─────────────────────────────────────────────────────
+
+    def _default_value_for_type(self, type_name: str):
+        return {'int': 0, 'float': 0.0, 'string': '', 'bool': False}.get(type_name, None)
+
+    def visitStructDecl(self, ctx: Language_v4Parser.StructDeclContext):
+        struct_name = ctx.ID(0).getText()
+        fields = {}
+        for i, var_type in enumerate(ctx.varType()):
+            fields[ctx.ID(i + 1).getText()] = var_type.getText()
+        self.struct_defs[struct_name] = fields
+        return None
+
+    def visitStructVar(self, ctx: Language_v4Parser.StructVarContext):
+        struct_name = ctx.ID(0).getText()
+        var_name = ctx.ID(1).getText()
+        fields = self.struct_defs.get(struct_name, {})
+        value = {
+            field_name: self._default_value_for_type(field_type)
+            for field_name, field_type in fields.items()
+        }
+        self._declare_var(var_name, value)
+        return value
+
+    def visitFieldAssign(self, ctx: Language_v4Parser.FieldAssignContext):
+        var_name = ctx.ID(0).getText()
+        field_name = ctx.ID(1).getText()
+        struct_value = self._lookup_var(var_name)
+        value = self.visit(ctx.expr())
+        struct_value[field_name] = value
+        return value
+
+    def visitStructFieldAccess(self, ctx: Language_v4Parser.StructFieldAccessContext):
+        return self.visit(ctx.fieldAccess())
+
+    def visitFieldAccess(self, ctx: Language_v4Parser.FieldAccessContext):
+        var_name = ctx.ID(0).getText()
+        field_name = ctx.ID(1).getText()
+        return self._lookup_var(var_name)[field_name]
+
+    def visitSwitchStmt(self, ctx: Language_v4Parser.SwitchStmtContext):
+        switch_value = self.visit(ctx.expr())
+        matched = False
+
+        try:
+            for case_ctx in ctx.caseClause():
+                if matched or self.visit(case_ctx.expr()) == switch_value:
+                    matched = True
+                    self.visitCaseClause(case_ctx)
+
+            if not matched and ctx.defaultClause():
+                self.visit(ctx.defaultClause())
+        except BreakException:
+            return None
+        return None
+
+    def visitCaseClause(self, ctx: Language_v4Parser.CaseClauseContext):
+        for statement in ctx.statement():
+            self.visit(statement)
+        if ctx.breakStmt():
+            self.visit(ctx.breakStmt())
+        return None
+
+    def visitDefaultClause(self, ctx: Language_v4Parser.DefaultClauseContext):
+        for statement in ctx.statement():
+            self.visit(statement)
+        return None        
