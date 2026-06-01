@@ -1,4 +1,3 @@
-//Branch Language_02
 grammar Language_v4;
 
 // --- REGLAS SINTÁCTICAS ---
@@ -24,7 +23,8 @@ statement:
 	| continueStmt LINEE
 	| fieldAssign
 	| structVar
-	| assignment LINEE;
+	| assignment LINEE
+	| expr LINEE;
 
 varType: (INT_R | FLOAT_R | STRING_R | BOOL_R | VOID_R) (BRACKETS)?;
 
@@ -32,7 +32,7 @@ variable: varType ID (ASSIGN expr)? LINEE;
 
 // Permite múltiples argumentos separados por comas
 argsFunction: varType ID (COMMA varType ID)*;
-function: varType ID (PARS argsFunction PARE) block;
+function: varType ID PARS argsFunction? PARE block;
 
 conditional: IF_R PARS condition PARE block (ELSE_R block)?;
 whileStmt: WHILE_R PARS condition PARE block;
