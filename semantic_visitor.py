@@ -17,6 +17,7 @@ class SemanticVisitor(Language_v4Visitor):
         self.errors = []
         self.current_function_return_type = None
         self.loop_depth = 0 # Para validar break/continue
+        self.switch_depth = 0 # Para validar break en switch/case
 
     def _err(self, line, col, msg):
         self.errors.append(f"[Error Semántico] Línea {line}, Columna {col}: {msg}")
@@ -345,10 +346,20 @@ class SemanticVisitor(Language_v4Visitor):
         self.symbol_table.pop_scope()
         return None
 
+    def visitSwitchStmt(self, ctx: Language_v4Parser.SwitchStmtContext):
+        self.visit(ctx.expr())
+        self.switch_depth += 1
+        for case in ctx.caseClause():
+            self.visit(case)
+        if ctx.defaultClause():
+            self.visit(ctx.defaultClause())
+        self.switch_depth -= 1
+        return None
+
     def visitBreakStmt(self, ctx: Language_v4Parser.BreakStmtContext):
-        if self.loop_depth == 0:
+        if self.loop_depth == 0 and self.switch_depth == 0:
             self._err(ctx.BREAK_R().getSymbol().line, ctx.BREAK_R().getSymbol().column,
-                      "La sentencia 'break' solo puede usarse dentro de un ciclo.")
+                      "La sentencia 'break' solo puede usarse dentro de un ciclo o switch.")
         return None
 
     def visitContinueStmt(self, ctx: Language_v4Parser.ContinueStmtContext):
@@ -549,7 +560,7 @@ class SemanticVisitor(Language_v4Visitor):
                       f"'{expr_type}' a '{field_type}'.")
         return None
 
-    # ── Ternary Operators ──────────────────────────────────────────────────────────────
+    # ── Ternary Operators ──────────────────────────────────────────────────────
 
     def visitTernaryCompare(self, ctx: Language_v4Parser.TernaryCompareContext):
         self._infer_ternary(ctx)
