@@ -1,4 +1,4 @@
-grammar Language_v3;
+grammar Language_v4;
 
 // --- REGLAS SINTÁCTICAS ---
 program: (importStmt)* PROGRAM_R ID BRACES (declaration | statement)* BRACEE;
@@ -6,7 +6,7 @@ program: (importStmt)* PROGRAM_R ID BRACES (declaration | statement)* BRACEE;
 importStmt: IMPORT_R ID LINEE;
 
 // Permite 'int x;'
-declaration: variable | function | statement;
+declaration: variable | function | structDecl | structVar | statement;
 
 // Un statement puede ser una asignación, un if, o un bloque de código
 statement:
@@ -16,11 +16,15 @@ statement:
 	| block
 	| whileStmt
 	| forStmt
+	| switchStmt
 	| printStmt LINEE
 	| returnStmt LINEE
 	| breakStmt LINEE
 	| continueStmt LINEE
-	| assignment LINEE;
+	| fieldAssign
+	| structVar
+	| assignment LINEE
+	| expr LINEE;
 
 varType: (INT_R | FLOAT_R | STRING_R | BOOL_R | VOID_R) (BRACKETS)?;
 
@@ -28,7 +32,7 @@ variable: varType ID (ASSIGN expr)? LINEE;
 
 // Permite múltiples argumentos separados por comas
 argsFunction: varType ID (COMMA varType ID)*;
-function: varType ID (PARS argsFunction PARE) block;
+function: varType ID PARS argsFunction? PARE block;
 
 conditional: IF_R PARS condition PARE block (ELSE_R block)?;
 whileStmt: WHILE_R PARS condition PARE block;
@@ -54,20 +58,34 @@ condition:
 
 // Expresiones con precedencia automática por orden de aparición
 expr:
-	left = expr op = (MUL | DIV | MOD) right = expr	# MulDivMod
-	| left = expr op = (ADD | SUB) right = expr	# AddSub
-	| PARS expr PARE							# Parens
-	| ID PARS (args?) PARE						# FunctionCall
-	| ID BRACKS expr BRACKE						# ArrayAccess
-	| BRACKS (expr (COMMA expr)*)? BRACKE		# ArrayLit
+	PARS varType PARE expr								# CastExpr
+	| left = expr op = (MUL | DIV | MOD) right = expr	# MulDivMod
+	| left = expr op = (ADD | SUB) right = expr			# AddSub
+	| expr op = (GT | LT | EQ | NE | GTE | LTE) expr QUESTION expr COLON expr	# TernaryCompare
+	| PARS condition PARE QUESTION expr COLON expr								# TernaryParensCond
+	| expr QUESTION expr COLON expr												# TernarySimple
+	| PARS expr PARE									# Parens
+	| ID PARS (args?) PARE								# FunctionCall
+	| fieldAccess										# StructFieldAccess
+	| ID BRACKS expr BRACKE								# ArrayAccess
+	| BRACKS (expr (COMMA expr)*)? BRACKE				# ArrayLit
 	| (INT_R | FLOAT_R | STRING_R | BOOL_R) BRACKS expr BRACKE # ArrayNew
-	| ID										# Id
-	| NUMBER									# Int
-	| FLOAT										# FloatExpr
-	| STRING									# StringExpr
-	| BOOL										# BoolExpr;
+	| ID												# Id
+	| NUMBER											# Int
+	| FLOAT												# FloatExpr
+	| STRING											# StringExpr
+	| BOOL												# BoolExpr;
 
 args: expr (COMMA expr)*;
+// Nuevas reglas para v4
+switchStmt: SWITCH_R PARS expr PARE BRACES caseClause* defaultClause? BRACEE;
+caseClause: CASE_R expr COLON statement* (breakStmt LINEE)?;
+defaultClause: DEFAULT_R COLON statement*;
+
+structDecl  : STRUCT_R ID BRACES (varType ID LINEE)+ BRACEE LINEE;
+structVar   : ID ID (ASSIGN expr)? LINEE;
+fieldAccess : ID DOT ID;
+fieldAssign : ID DOT ID ASSIGN expr LINEE;
 
 // --- REGLAS LÉXICAS ---
 PROGRAM_R: 'program';
@@ -108,6 +126,15 @@ PARE: ')';
 BRACKETS: '[]';
 BRACKS: '[';
 BRACKE: ']';
+
+SWITCH_R  : 'switch';
+CASE_R    : 'case';
+DEFAULT_R : 'default';
+COLON     : ':';
+QUESTION  : '?';
+STRUCT_R  : 'struct';
+DOT       : '.';
+
 NUMBER: [0-9]+;
 FLOAT: [0-9]+ '.' [0-9]+;
 STRING: '"' (~["\r\n])* '"';

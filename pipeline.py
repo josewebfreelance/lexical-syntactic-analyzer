@@ -1,13 +1,15 @@
 """
 pipeline.py
 -----------
-Orquesta las 6 fases del compilador v3:
+Orquesta las 8 fases del compilador v4:
 1. Léxico
 2. Sintáctico
 3. Semántico
 4. TAC (Generación de Código Intermedio)
 5. LLVM IR (Generación de Código)
 6. Ejecución (Intérprete + Ejecución de IR)
+7. Optimización O3
+8. Generación de Binarios
 """
 
 import time
@@ -17,12 +19,14 @@ import subprocess
 from antlr4 import *
 from antlr4.error.ErrorListener import ErrorListener
 
-from Language_v3Lexer import Language_v3Lexer
-from Language_v3Parser import Language_v3Parser
+from Language_v4Lexer import Language_v4Lexer
+from Language_v4Parser import Language_v4Parser
 from semantic_visitor import SemanticVisitor
 from interpreter import Interpreter
 from tac_generator import TACGenerator
 from ir_generator import IRGenerator
+from optimizer import optimize_ir
+from binary_generator import generate_binary
 
 
 class LexerErrorListener(ErrorListener):
@@ -55,7 +59,7 @@ class ParserErrorListener(ErrorListener):
         })
 
 
-def run_pipeline(source_code: str, is_file=True):
+def run_pipeline(source_code: str, is_file=True, target_linux=False, target_windows=False):
     start_total = time.perf_counter()
     results = {
         "phases": [],
@@ -63,6 +67,9 @@ def run_pipeline(source_code: str, is_file=True):
         "ir_output": "",
         "console_output": "",
         "ir_exec_output": "",
+        "optimized_ir": "",
+        "opt_metrics": {},
+        "binary_result": {},
         "success": True
     }
 
@@ -74,6 +81,14 @@ def run_pipeline(source_code: str, is_file=True):
             "errors": errors or []
         })
 
+    def add_error(name, duration, exc):
+        add_phase(name, "ERROR", duration, [{
+            "type": name,
+            "line": 0,
+            "column": 0,
+            "msg": str(exc)
+        }])
+
     # 1. Preparación ──────────────────────────────────────────────────────────
     if is_file:
         input_stream = FileStream(source_code, encoding='utf-8')
@@ -82,7 +97,7 @@ def run_pipeline(source_code: str, is_file=True):
 
     # 2. FASE LÉXICA ──────────────────────────────────────────────────────────
     start = time.perf_counter()
-    lexer = Language_v3Lexer(input_stream)
+    lexer = Language_v4Lexer(input_stream)
     lexer_errors = LexerErrorListener()
     lexer.removeErrorListeners()
     lexer.addErrorListener(lexer_errors)
@@ -99,7 +114,7 @@ def run_pipeline(source_code: str, is_file=True):
 
     # 3. FASE SINTÁCTICA ───────────────────────────────────────────────────────
     start = time.perf_counter()
-    parser = Language_v3Parser(token_stream)
+    parser = Language_v4Parser(token_stream)
     parser_errors = ParserErrorListener()
     parser.removeErrorListeners()
     parser.addErrorListener(parser_errors)
@@ -179,17 +194,66 @@ def run_pipeline(source_code: str, is_file=True):
     exec_duration = time.perf_counter() - start
     add_phase("Ejecución (Int)", exec_status, exec_duration)
 
-    # 8. EJECUCIÓN LLVM (lli) ───────────────────────────────────────────────────
+    results["ir_exec_output"] = execute_ir(results["ir_output"])
+
+    # 7. FASE OPTIMIZACIÓN O3 ─────────────────────────────────────────────────────
+    start = time.perf_counter()
     try:
-        as_proc = subprocess.run(["llvm-as", "output.ll", "-o", "output.bc"], capture_output=True, text=True)
-        if as_proc.returncode != 0:
-            results["ir_exec_output"] = f"Error en llvm-as:\n{as_proc.stderr}"
-        else:
-            lli_proc = subprocess.run(["lli", "output.bc"], capture_output=True, text=True)
-            results["ir_exec_output"] = lli_proc.stdout + lli_proc.stderr
-    except FileNotFoundError:
-        results["ir_exec_output"] = "Error: 'lli' o 'llvm-as' no encontrado en el sistema."
+        opt_result = optimize_ir(results["ir_output"])
+        results["optimized_ir"] = opt_result["optimized_ir"]
+        results["opt_metrics"] = opt_result["metrics"]
+
+        with open("output.opt.ll", "w") as f:
+            f.write(results["optimized_ir"])
+
+        opt_duration = time.perf_counter() - start
+        add_phase("Optimización O3", "OK", opt_duration)
     except Exception as e:
-        results["ir_exec_output"] = f"Error al ejecutar IR: {e}"
+        opt_duration = time.perf_counter() - start
+        add_error("Optimización O3", opt_duration, e)
+        results["success"] = False
+        return results
+
+    # 8. FASE GENERACIÓN BINARIO ──────────────────────────────────────────────────
+    start = time.perf_counter()
+    if target_linux or target_windows:
+        bin_result = generate_binary(results["optimized_ir"], target_linux, target_windows)
+        results["binary_result"] = bin_result
+        bin_duration = time.perf_counter() - start
+        status = "OK" if all(r.get("success") for r in bin_result.values()) else "ERROR"
+        errors = []
+        for platform, platform_result in bin_result.items():
+            if not platform_result.get("success"):
+                errors.append({
+                    "type": "Binario",
+                    "line": 0,
+                    "column": 0,
+                    "msg": f"{platform}: {platform_result.get('error', 'Error desconocido')}"
+                })
+        add_phase("Generación Binario", status, bin_duration, errors)
+        if status == "ERROR":
+            results["success"] = False
+    else:
+        results["binary_result"] = {}
+        add_phase("Generación Binario", "OK", time.perf_counter() - start)
 
     return results
+
+
+def execute_ir(ir_string: str) -> str:
+    with open("output.exec.ll", "w") as f:
+        f.write(ir_string)
+    try:
+        as_proc = subprocess.run(
+            ["llvm-as", "output.exec.ll", "-o", "output.bc"],
+            capture_output=True,
+            text=True,
+        )
+        if as_proc.returncode != 0:
+            return f"Error en llvm-as:\n{as_proc.stderr}"
+        lli_proc = subprocess.run(["lli", "output.bc"], capture_output=True, text=True)
+        return lli_proc.stdout + lli_proc.stderr
+    except FileNotFoundError:
+        return "Error: 'lli' o 'llvm-as' no encontrado en el sistema."
+    except Exception as e:
+        return f"Error al ejecutar IR: {e}"
