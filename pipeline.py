@@ -81,6 +81,14 @@ def run_pipeline(source_code: str, is_file=True, target_linux=False, target_wind
             "errors": errors or []
         })
 
+    def add_error(name, duration, exc):
+        add_phase(name, "ERROR", duration, [{
+            "type": name,
+            "line": 0,
+            "column": 0,
+            "msg": str(exc)
+        }])
+
     # 1. Preparación ──────────────────────────────────────────────────────────
     if is_file:
         input_stream = FileStream(source_code, encoding='utf-8')
@@ -186,39 +194,66 @@ def run_pipeline(source_code: str, is_file=True, target_linux=False, target_wind
     exec_duration = time.perf_counter() - start
     add_phase("Ejecución (Int)", exec_status, exec_duration)
 
-    # 8. EJECUCIÓN LLVM (lli) ───────────────────────────────────────────────────
-    try:
-        as_proc = subprocess.run(["llvm-as", "output.ll", "-o", "output.bc"], capture_output=True, text=True)
-        if as_proc.returncode != 0:
-            results["ir_exec_output"] = f"Error en llvm-as:\n{as_proc.stderr}"
-        else:
-            lli_proc = subprocess.run(["lli", "output.bc"], capture_output=True, text=True)
-            results["ir_exec_output"] = lli_proc.stdout + lli_proc.stderr
-    except FileNotFoundError:
-        results["ir_exec_output"] = "Error: 'lli' o 'llvm-as' no encontrado en el sistema."
-    except Exception as e:
-        results["ir_exec_output"] = f"Error al ejecutar IR: {e}"
+    results["ir_exec_output"] = execute_ir(results["ir_output"])
 
-    # 9. FASE OPTIMIZACIÓN O3 ─────────────────────────────────────────────────────
+    # 7. FASE OPTIMIZACIÓN O3 ─────────────────────────────────────────────────────
     start = time.perf_counter()
-    opt_result = optimize_ir(results["ir_output"])
-    results["optimized_ir"] = opt_result["optimized_ir"]
-    results["opt_metrics"] = opt_result["metrics"]
+    try:
+        opt_result = optimize_ir(results["ir_output"])
+        results["optimized_ir"] = opt_result["optimized_ir"]
+        results["opt_metrics"] = opt_result["metrics"]
 
-    with open("output.opt.ll", "w") as f:
-        f.write(results["optimized_ir"])
+        with open("output.opt.ll", "w") as f:
+            f.write(results["optimized_ir"])
 
-    opt_duration = time.perf_counter() - start
-    add_phase("Optimización O3", "OK", opt_duration)
+        opt_duration = time.perf_counter() - start
+        add_phase("Optimización O3", "OK", opt_duration)
+    except Exception as e:
+        opt_duration = time.perf_counter() - start
+        add_error("Optimización O3", opt_duration, e)
+        results["success"] = False
+        return results
 
-    # 10. FASE GENERACIÓN BINARIO ──────────────────────────────────────────────────
+    # 8. FASE GENERACIÓN BINARIO ──────────────────────────────────────────────────
+    start = time.perf_counter()
     if target_linux or target_windows:
-        start = time.perf_counter()
         bin_result = generate_binary(results["optimized_ir"], target_linux, target_windows)
         results["binary_result"] = bin_result
         bin_duration = time.perf_counter() - start
-        add_phase("Generación Binario", "OK", bin_duration)
+        status = "OK" if all(r.get("success") for r in bin_result.values()) else "ERROR"
+        errors = []
+        for platform, platform_result in bin_result.items():
+            if not platform_result.get("success"):
+                errors.append({
+                    "type": "Binario",
+                    "line": 0,
+                    "column": 0,
+                    "msg": f"{platform}: {platform_result.get('error', 'Error desconocido')}"
+                })
+        add_phase("Generación Binario", status, bin_duration, errors)
+        if status == "ERROR":
+            results["success"] = False
     else:
         results["binary_result"] = {}
+        add_phase("Generación Binario", "OK", time.perf_counter() - start)
 
     return results
+
+
+def execute_ir(ir_string: str) -> str:
+    with open("output.exec.ll", "w") as f:
+        f.write(ir_string)
+    try:
+        as_proc = subprocess.run(
+            ["llvm-as", "output.exec.ll", "-o", "output.bc"],
+            capture_output=True,
+            text=True,
+        )
+        if as_proc.returncode != 0:
+            return f"Error en llvm-as:\n{as_proc.stderr}"
+        lli_proc = subprocess.run(["lli", "output.bc"], capture_output=True, text=True)
+        return lli_proc.stdout + lli_proc.stderr
+    except FileNotFoundError:
+        return "Error: 'lli' o 'llvm-as' no encontrado en el sistema."
+    except Exception as e:
+        return f"Error al ejecutar IR: {e}"
