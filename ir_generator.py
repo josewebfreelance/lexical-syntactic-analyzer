@@ -5,10 +5,10 @@ Generador de LLVM IR usando llvmlite.
 """
 
 import llvmlite.ir as ir
-from Language_v3Visitor import Language_v3Visitor
-from Language_v3Parser import Language_v3Parser
+from Language_v4Visitor import Language_v4Visitor
+from Language_v4Parser import Language_v4Parser
 
-class IRGenerator(Language_v3Visitor):
+class IRGenerator(Language_v4Visitor):
     def __init__(self):
         self.module = ir.Module(name="program")
         self.builder = None
@@ -65,7 +65,7 @@ class IRGenerator(Language_v3Visitor):
 
     # ── Visitors ─────────────────────────────────────────────────────────────
 
-    def visitProgram(self, ctx: Language_v3Parser.ProgramContext):
+    def visitProgram(self, ctx: Language_v4Parser.ProgramContext):
         # Crear main si no hay funciones? O el programa es el main.
         # En esta gramática, program tiene un bloque de instrucciones.
         # Vamos a envolver el cuerpo del program en una función @main.
@@ -81,7 +81,7 @@ class IRGenerator(Language_v3Visitor):
             self.builder.ret(ir.Constant(self.i32, 0))
         return None
 
-    def visitVariable(self, ctx: Language_v3Parser.VariableContext):
+    def visitVariable(self, ctx: Language_v4Parser.VariableContext):
         name = ctx.ID().getText()
         ty = self._get_llvm_type(ctx.varType().getText())
         
@@ -94,7 +94,7 @@ class IRGenerator(Language_v3Visitor):
             self.builder.store(val, ptr)
         return None
 
-    def visitAssignment(self, ctx: Language_v3Parser.AssignmentContext):
+    def visitAssignment(self, ctx: Language_v4Parser.AssignmentContext):
         name = ctx.ID().getText()
         ptr = self.variables.get(name)
         
@@ -110,7 +110,7 @@ class IRGenerator(Language_v3Visitor):
             self.builder.store(val, ptr)
             return val
 
-    def visitFunction(self, ctx: Language_v3Parser.FunctionContext):
+    def visitFunction(self, ctx: Language_v4Parser.FunctionContext):
         name = ctx.ID().getText()
         ret_ty = self._get_llvm_type(ctx.varType().getText())
         
@@ -156,7 +156,7 @@ class IRGenerator(Language_v3Visitor):
         self.variables = old_vars
         return None
 
-    def visitReturnStmt(self, ctx: Language_v3Parser.ReturnStmtContext):
+    def visitReturnStmt(self, ctx: Language_v4Parser.ReturnStmtContext):
         if ctx.expr():
             val = self.visit(ctx.expr())
             self.builder.ret(val)
@@ -164,7 +164,7 @@ class IRGenerator(Language_v3Visitor):
             self.builder.ret_void()
         return None
 
-    def visitConditional(self, ctx: Language_v3Parser.ConditionalContext):
+    def visitConditional(self, ctx: Language_v4Parser.ConditionalContext):
         cond = self.visit(ctx.condition())
         
         then_block = self.func.append_basic_block(name="then")
@@ -189,7 +189,7 @@ class IRGenerator(Language_v3Visitor):
         self.builder.position_at_end(merge_block)
         return None
 
-    def visitWhileStmt(self, ctx: Language_v3Parser.WhileStmtContext):
+    def visitWhileStmt(self, ctx: Language_v4Parser.WhileStmtContext):
         cond_block = self.func.append_basic_block(name="while_cond")
         body_block = self.func.append_basic_block(name="while_body")
         end_block = self.func.append_basic_block(name="while_end")
@@ -211,7 +211,7 @@ class IRGenerator(Language_v3Visitor):
         self.builder.position_at_end(end_block)
         return None
 
-    def visitForStmt(self, ctx: Language_v3Parser.ForStmtContext):
+    def visitForStmt(self, ctx: Language_v4Parser.ForStmtContext):
         # Scope para la variable de control si se declara en el for
         # Nota: La tabla de símbolos ya maneja esto, pero aquí en IR 
         # necesitamos ser cuidadosos con el builder.
@@ -262,19 +262,19 @@ class IRGenerator(Language_v3Visitor):
         self.builder.position_at_end(end_block)
         return None
 
-    def visitBreakStmt(self, ctx: Language_v3Parser.BreakStmtContext):
+    def visitBreakStmt(self, ctx: Language_v4Parser.BreakStmtContext):
         if self.loop_stack:
             _, end_block = self.loop_stack[-1]
             self.builder.branch(end_block)
         return None
 
-    def visitContinueStmt(self, ctx: Language_v3Parser.ContinueStmtContext):
+    def visitContinueStmt(self, ctx: Language_v4Parser.ContinueStmtContext):
         if self.loop_stack:
             cond_block, _ = self.loop_stack[-1]
             self.builder.branch(cond_block)
         return None
 
-    def visitPrintStmt(self, ctx: Language_v3Parser.PrintStmtContext):
+    def visitPrintStmt(self, ctx: Language_v4Parser.PrintStmtContext):
         val = self.visit(ctx.expr())
         
         if val.type == self.i32:
@@ -290,7 +290,7 @@ class IRGenerator(Language_v3Visitor):
 
     # ── Expresiones ──────────────────────────────────────────────────────────
 
-    def visitMulDivMod(self, ctx: Language_v3Parser.MulDivModContext):
+    def visitMulDivMod(self, ctx: Language_v4Parser.MulDivModContext):
         lt = self.visit(ctx.left)
         rt = self.visit(ctx.right)
         op = ctx.op.text
@@ -299,7 +299,7 @@ class IRGenerator(Language_v3Visitor):
         if op == '%': return self.builder.srem(lt, rt)
         return None
 
-    def visitAddSub(self, ctx: Language_v3Parser.AddSubContext):
+    def visitAddSub(self, ctx: Language_v4Parser.AddSubContext):
         lt = self.visit(ctx.left)
         rt = self.visit(ctx.right)
         op = ctx.op.text
@@ -307,32 +307,32 @@ class IRGenerator(Language_v3Visitor):
         if op == '-': return self.builder.sub(lt, rt)
         return None
 
-    def visitComparison(self, ctx: Language_v3Parser.ComparisonContext):
+    def visitComparison(self, ctx: Language_v4Parser.ComparisonContext):
         lt = self.visit(ctx.expr(0))
         rt = self.visit(ctx.expr(1))
         op = ctx.op.text
         # Simplificando para i32
         return self.builder.icmp_signed(op, lt, rt)
 
-    def visitId(self, ctx: Language_v3Parser.IdContext):
+    def visitId(self, ctx: Language_v4Parser.IdContext):
         ptr = self.variables.get(ctx.ID().getText())
         return self.builder.load(ptr)
 
-    def visitInt(self, ctx: Language_v3Parser.IntContext):
+    def visitInt(self, ctx: Language_v4Parser.IntContext):
         return ir.Constant(self.i32, int(ctx.NUMBER().getText()))
 
-    def visitFloatExpr(self, ctx: Language_v3Parser.FloatExprContext):
+    def visitFloatExpr(self, ctx: Language_v4Parser.FloatExprContext):
         return ir.Constant(self.f64, float(ctx.FLOAT().getText()))
 
-    def visitStringExpr(self, ctx: Language_v3Parser.StringExprContext):
+    def visitStringExpr(self, ctx: Language_v4Parser.StringExprContext):
         text = ctx.STRING().getText()[1:-1] + "\0"
         return self._create_global_string(text, f"str_{id(ctx)}").bitcast(self.char_ptr)
 
-    def visitBoolExpr(self, ctx: Language_v3Parser.BoolExprContext):
+    def visitBoolExpr(self, ctx: Language_v4Parser.BoolExprContext):
         val = 1 if ctx.BOOL().getText() == 'true' else 0
         return ir.Constant(self.i1, val)
 
-    def visitFunctionCall(self, ctx: Language_v3Parser.FunctionCallContext):
+    def visitFunctionCall(self, ctx: Language_v4Parser.FunctionCallContext):
         name = ctx.ID().getText()
         func = self.functions.get(name) or self.module.globals.get(name)
         
@@ -342,7 +342,7 @@ class IRGenerator(Language_v3Visitor):
             
         return self.builder.call(func, args)
         
-    def visitArrayAccess(self, ctx: Language_v3Parser.ArrayAccessContext):
+    def visitArrayAccess(self, ctx: Language_v4Parser.ArrayAccessContext):
         ptr = self.variables.get(ctx.ID().getText())
         idx = self.visit(ctx.expr())
         arr_ptr = self.builder.load(ptr)
