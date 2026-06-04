@@ -20,7 +20,7 @@ class SymbolTable:
 
     # ── Variables ────────────────────────────────────────────────────────────
 
-    def declare(self, name, data_type, is_array=False, array_size=None, line=0, col=0):
+    def declare(self, name, data_type, is_array=False, array_size=None, is_struct=False, line=0, col=0):
         """
         Declara variable en el scope actual.
         is_array: bool
@@ -33,7 +33,7 @@ class SymbolTable:
         element_type = data_type.replace('[]', '') if is_array else data_type
         
         self.scopes[-1][name] = {
-            "type": data_type, # e.g., 'int' o 'int[]'
+            "type": data_type, # e.g., 'int', 'int[]', o 'Punto'
             "element_type": element_type,
             "is_array": is_array,
             "array_size": array_size,
@@ -85,7 +85,7 @@ class SymbolTable:
             self.declare_function("pow", "float", [("float", "base"), ("float", "exp")])
             self.declare_function("sqrt", "float", [("float", "n")])
 
-── Structs ──────────────────────────────────────────────────────────────
+    # ── Structs ──────────────────────────────────────────────────────────────
 
     def declare_struct(self, name, fields):
         """
@@ -97,7 +97,7 @@ class SymbolTable:
     def lookup_struct(self, name):
         """Retorna el descriptor de struct o None si no existe."""
         return self.structs.get(name)
-    
+
     def get_struct_field_type(self, struct_name, field_name):
         """Retorna el tipo de un campo de un struct o None si no existe."""
         struct = self.lookup_struct(struct_name)

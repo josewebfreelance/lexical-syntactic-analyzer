@@ -23,6 +23,16 @@ Este proyecto es un **compilador multifase** (léxico, sintáctico, semántico, 
 
 - **TAC (Código de Tres Direcciones):** Generador que produce instrucciones atómicas con temporales (`t0`, `t1`, …) y etiquetas de salto (`L0`, `L1`, …).
 - **LLVM IR:** Generador que utiliza `llvmlite` para producir código `.ll` funcional. El código generado es verificable con `llvm-as` y ejecutable con `lli`.
+
+### Fase 4: Optimización
+
+- **Optimizador Automático (O3):** Aplica optimizaciones de LLVM usando PassManager para reducir el tamaño del código y mejorar el rendimiento.
+- **Optimizador Manual:** Permite seleccionar passes individuales (mem2reg, instcombine, dce, inline, etc.) para control granular de las optimizaciones.
+
+### Fase 5: Generación de Binarios
+
+- **Binarios Nativos Linux:** Compila el IR optimizado a ejecutables nativos para Linux usando clang.
+- **Cross-compilación Windows:** Temporalmente deshabilitada debido a problemas de compatibilidad con mingw-w64 en WSL/Ubuntu.
 - **Interfaz Web Interactiva (`ui_compiler.py`):** Una aplicación web completa (Flask) que permite escribir código, compilar y visualizar el progreso por fases, tiempos, errores, TAC, IR y salida de ejecución en paneles dedicados.
 
 ---
@@ -41,7 +51,11 @@ ui_compiler.py (Flask)
          ├─ 4. TAC            → TACGenerator          → Viewer TAC
          ├─ 5. LLVM IR        → IRGenerator           → Viewer IR
          │       ↓
-         └─ 6. Ejecución      → Interpreter / lli     → Consola UI
+         ├─ 6. Ejecución      → Interpreter / lli     → Consola UI
+         │       ↓
+         ├─ 7. Optimización    → Optimizer (O3)        → IR Optimizado
+         │       ↓
+         └─ 8. Binarios       → Binary Generator       → Ejecutables (Linux/Windows)
 ```
 
 ---
@@ -61,19 +75,44 @@ ui_compiler.py (Flask)
    pip install -r requirements.txt
    ```
 
-2. Generar archivos del parser (necesario si modificas `Language_v3.g4`):
+2. Instalar ANTLR4 (si aún no está instalado):
    ```bash
-   antlr4 -Dlanguage=Python3 -visitor -no-listener Language_v3.g4
+   sudo apt-get install antlr4
    ```
 
-3. Limpiar archivos de versiones anteriores (Opcional):
+3. Generar archivos del parser (necesario si modificas `Language_v4.g4`):
+   
+   Si estás dentro del venv y usas `antlr4-tools`, especifica la versión:
+   ```bash
+   export ANTLR4_TOOLS_ANTLR_VERSION=4.13.2
+   antlr4 -Dlanguage=Python3 -visitor -no-listener Language_v4.g4
+   ```
+   
+   Alternativamente, fuera del venv usa el binario del sistema:
+   ```bash
+   deactivate
+   /usr/bin/antlr4 -Dlanguage=Python3 -visitor -no-listener Language_v4.g4
+   source .venv/bin/activate
+   ```
+
+4. Limpiar archivos de versiones anteriores (Opcional):
    ```bash
    rm Language.g4 Language*.py Language*.tokens Language*.interp
    ```
 
-4. (Opcional) Instalar LLVM para ejecutar el IR generado:
+5. (Opcional) Instalar LLVM para ejecutar el IR generado:
    ```bash
    sudo apt install llvm
+   ```
+
+6. (Opcional) Instalar herramientas de compilación para generar binarios nativos:
+   ```bash
+   sudo apt install clang
+   ```
+
+   Para cross-compilación a Windows (desde Linux/WSL):
+   ```bash
+   sudo apt install clang mingw-w64
    ```
 
 ---
@@ -141,12 +180,15 @@ float s = sqrt(16.0);
 
 | Archivo | Descripción |
 |---|---|
-| `Language_v3.g4` | Gramática ANTLR4 versionada con todas las extensiones |
+| `Language_v4.g4` | Gramática ANTLR4 versionada con todas las extensiones |
 | `tac_generator.py` | Generador de Código de Tres Direcciones (TAC) |
 | `ir_generator.py` | Generador de LLVM IR usando `llvmlite` |
+| `optimizer.py` | Optimizador automático de LLVM IR (O3) |
+| `manual_optimizer.py` | Optimizador manual con passes seleccionables |
+| `binary_generator.py` | Generador de binarios nativos (Linux/Windows) |
 | `ui_compiler.py` | Servidor Flask para la interfaz interactiva |
 | `templates/index.html` | Frontend de la interfaz con 8 paneles |
-| `pipeline.py` | Orquestador de las 6 fases con medición de tiempos |
+| `pipeline.py` | Orquestador de las 8 fases con medición de tiempos |
 
 ### Núcleo
 
@@ -155,3 +197,65 @@ float s = sqrt(16.0);
 | `semantic_visitor.py` | Validación de tipos y reglas de control (break/continue) |
 | `interpreter.py` | Motor de ejecución (Intérprete AST) |
 | `symbol_table.py` | Gestión de scopes, variables, arreglos y funciones |
+
+---
+
+## Solución de Problemas
+
+### Error: "Herramientas de cross-compilación no encontradas"
+
+Al intentar generar binarios para Windows desde Linux/WSL, aparece este error:
+
+```
+Error de Compilación:
+Herramientas de cross-compilación no encontradas.
+Instala con: sudo apt install clang mingw-w64
+```
+
+**Soluciones:**
+
+1. **Instalar herramientas de cross-compilación (para binarios Windows):**
+   ```bash
+   sudo apt update
+   sudo apt install clang mingw-w64
+   ```
+
+2. **Generar solo binarios Linux (funciona en WSL):**
+   - En la interfaz web, desmarca la opción "Windows" y marca solo "Linux"
+   - Los binarios Linux generados funcionarán en tu entorno WSL
+
+3. **Usar el IR de LLVM directamente:**
+   - El pipeline genera automáticamente `output.ll` (IR de LLVM)
+   - Puedes ejecutarlo con: `lli output.bc`
+   - O compilarlo manualmente con herramientas que tengas instaladas
+
+### Error: "clang no encontrado"
+
+Si aparece este error al intentar generar binarios Linux:
+
+**Soluciones:**
+
+1. **Instalar clang:**
+   ```bash
+   sudo apt install clang
+   ```
+
+2. **Usar el intérprete integrado:**
+   - El pipeline incluye un intérprete Python que ejecuta el código directamente
+   - No requiere herramientas externas de compilación
+
+3. **Usar el IR de LLVM:**
+   - El archivo `output.ll` contiene el código intermedio de LLVM
+   - Puede ser ejecutado con `lli` si tienes LLVM instalado
+
+### Error: "llvmlite.binding.initialize() is deprecated"
+
+Si aparece este error de versión de llvmlite:
+
+**Solución:**
+El código ha sido actualizado para manejar versiones modernas de llvmlite. Si persiste el error, actualiza llvmlite:
+```bash
+pip install --upgrade llvmlite
+```
+
+---

@@ -284,8 +284,6 @@ class Interpreter(Language_v4Visitor):
         defaults = {'int': 0, 'float': 0.0, 'string': '', 'bool': False}
         return [defaults.get(base_type, None)] * size
 
-# ── convierte un valor a un tipo ─────────────────────────────────────────────────────
-
     def visitCastExpr(self, ctx: Language_v4Parser.CastExprContext):
         value = self.visit(ctx.expr())
         target_type = ctx.varType().getText().replace('[]', '')
@@ -317,8 +315,6 @@ class Interpreter(Language_v4Visitor):
     def visitTernarySimple(self, ctx: Language_v4Parser.TernarySimpleContext):
         return self.visit(ctx.expr(1)) if self.visit(ctx.expr(0)) else self.visit(ctx.expr(2))
 
-
-
     def visitId(self, ctx: Language_v4Parser.IdContext):
         return self._lookup_var(ctx.ID().getText())
 
@@ -338,8 +334,7 @@ class Interpreter(Language_v4Visitor):
     def visitArgs(self, ctx: Language_v4Parser.ArgsContext):
         return [self.visit(e) for e in ctx.expr()]
 
-
-# ── Structs y switch ─────────────────────────────────────────────────────
+    # ── Structs y switch ─────────────────────────────────────────────────────
 
     def _default_value_for_type(self, type_name: str):
         return {'int': 0, 'float': 0.0, 'string': '', 'bool': False}.get(type_name, None)
@@ -405,4 +400,4 @@ class Interpreter(Language_v4Visitor):
     def visitDefaultClause(self, ctx: Language_v4Parser.DefaultClauseContext):
         for statement in ctx.statement():
             self.visit(statement)
-        return None        
+        return None

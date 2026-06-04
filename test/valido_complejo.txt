@@ -1,34 +1,40 @@
 program myProgram {
-    int x = 3;
-    string prefijo = "El resultado es: ";
+    // Structs y casting explicito
+    struct Punto { int x; int y; };
+    Punto p;
+    p.x = 3;
+    p.y = 4;
+    float dist = (float)(p.x * p.x + p.y * p.y);
 
-    // Declaración de función recursiva
-    int factorial(int n) {
-        if (n <= 1) {
-            return 1;
-        } else {
-            return n * factorial(n - 1);
-        }
+    // Operador ternario
+    string etiqueta = dist > 20.0 ? "lejos" : "cerca";
+    print(etiqueta);
+
+    // Switch / case con default
+    int opcion = 2;
+    switch(opcion) {
+        case 1: print("opcion uno"); break;
+        case 2: print("opcion dos"); break;
+        default: print("otra opcion");
     }
 
-    // Uso de ciclos y scopes
-    while (x > 0) {
-        int temp = factorial(x);
-        print(prefijo);
-        print(temp);
-
-        x = x - 2;
+    // Funcion recursiva (continuidad del Proyecto 2)
+    int fibonacci(int n) {
+        if (n <= 1) { return n; }
+        return fibonacci(n - 1) + fibonacci(n - 2);
     }
 
-    // Test de constant folding: 2 + 3 debería optimizarse a 5
-    int resultado = 2 + 3;
-    print(resultado);
-
-    // Test de for
-    int suma = 0;
-    int i;
-    for (i = 1; i <= 5; i = i + 1) {
-        suma = suma + i;
+    // Array y modulo (continuidad del Proyecto 3)
+    int[] nums = [5, 8, 13, 21, 34];
+    int i = 0;
+    int total = 0;
+    while (i < 5) {
+        int r = nums[i] % 2;
+        if (r == 0) { total = total + nums[i]; }
+        i = i + 1;
+        if (total > 50) { break; }
     }
-    print(suma);
+
+    print(fibonacci(10));
+    print(total);
 }
