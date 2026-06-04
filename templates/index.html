@@ -4,33 +4,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Language v3 — Compilador Interactivo</title>
+    <title>Language v4 — Compilador Interactivo & Optimizador LLVM</title>
     <!-- CodeMirror 6 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/codemirror.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/6.65.7/mode/clike/clike.min.js"></script>
+
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+
     <style>
         :root {
-            --bg: #1e1e1e;
-            --sidebar: #252526;
-            --accent: #007acc;
-            --text: #d4d4d4;
-            --success: #4ec9b0;
-            --error: #f48771;
-            --border: #333;
+            --bg: #0d0e12;
+            --sidebar: #15171e;
+            --accent: #6366f1;
+            --accent-glow: rgba(99, 102, 241, 0.15);
+            --accent-hover: #4f46e5;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --success: #10b981;
+            --error: #f43f5e;
+            --border: rgba(255, 255, 255, 0.08);
+            --header-bg: rgba(21, 23, 30, 0.8);
+            --tab-active-bg: #1c1f26;
         }
 
-        .CodeMirror-code span {
-            color: #fff;
-        }
-
-        .cm-keyword {
-            color: #cd86d7 !important;
-        }
+        .cm-variable { color: #bac0db; }
+        .CodeMirror-line span { color: #99a2ca; }
 
         body {
             margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background: var(--bg);
             color: var(--text);
             display: flex;
@@ -40,18 +46,77 @@
         }
 
         header {
-            background: var(--sidebar);
-            padding: 10px 20px;
+            background: var(--header-bg);
+            backdrop-filter: blur(16px);
+            padding: 12px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             border-bottom: 1px solid var(--border);
+            z-index: 10;
+        }
+
+        .logo-section {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-badge {
+            background: linear-gradient(135deg, #6366f1, #a855f7);
+            color: white;
+            font-size: 0.75em;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 6px;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .logo-title {
+            font-size: 1.15em;
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .compile-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .platform-checkboxes {
+            display: flex;
+            gap: 12px;
+            font-size: 0.85em;
+            color: var(--text-muted);
+        }
+
+        .platform-checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .platform-checkboxes label:hover {
+            color: var(--text);
+        }
+
+        .platform-checkboxes input[type="checkbox"] {
+            accent-color: var(--accent);
+            cursor: pointer;
         }
 
         .main-container {
             display: flex;
             flex: 1;
             overflow: hidden;
+            background: var(--bg);
         }
 
         .editor-section {
@@ -59,21 +124,26 @@
             display: flex;
             flex-direction: column;
             border-right: 1px solid var(--border);
+            min-width: 300px;
         }
 
         .output-section {
-            flex: 1;
+            flex: 1.2;
             display: flex;
             flex-direction: column;
             background: var(--sidebar);
+            min-width: 350px;
         }
 
         .panel-header {
-            background: #2d2d2d;
-            padding: 5px 15px;
-            font-size: 0.9em;
+            background: rgba(28, 31, 38, 0.5);
+            padding: 8px 20px;
+            font-size: 0.8em;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 1px;
+            letter-spacing: 1.5px;
+            color: var(--text-muted);
+            border-bottom: 1px solid var(--border);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -83,65 +153,160 @@
             flex: 1;
             height: auto;
             font-size: 14px;
+            line-height: 1.5;
             background: var(--bg) !important;
+            font-family: 'JetBrains Mono', monospace !important;
         }
 
         .tabs {
             display: flex;
-            background: #2d2d2d;
+            background: rgba(21, 23, 30, 0.8);
             border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+        .tabs::-webkit-scrollbar {
+            display: none;
         }
 
         .tab {
-            padding: 10px 20px;
+            padding: 12px 20px;
             cursor: pointer;
-            font-size: 0.85em;
+            font-size: 0.8em;
+            font-weight: 600;
+            letter-spacing: 1px;
             border-right: 1px solid var(--border);
-            opacity: 0.7;
+            color: var(--text-muted);
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            background: transparent;
+            user-select: none;
+        }
+
+        .tab:hover {
+            color: var(--text);
+            background: rgba(255, 255, 255, 0.02);
         }
 
         .tab.active {
-            background: var(--bg);
-            border-bottom: 2px solid var(--accent);
-            opacity: 1;
+            background: var(--tab-active-bg);
+            color: #fff;
+        }
+
+        .tab.active::after {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent), #a855f7);
+            box-shadow: 0 -2px 10px rgba(99, 102, 241, 0.8);
         }
 
         .tab-content {
             flex: 1;
-            padding: 15px;
+            padding: 20px;
             overflow-y: auto;
-            font-family: 'Consolas', 'Courier New', monospace;
+            font-family: 'JetBrains Mono', monospace !important;
+            font-size: 0.85em;
+            line-height: 1.6;
+        }
+
+        .console-pre {
             white-space: pre-wrap;
-            font-size: 0.9em;
+            margin: 0;
+            color: #e2e8f0;
         }
 
         .phase-list {
             list-style: none;
             padding: 0;
             margin: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
         }
 
         .phase-item {
             display: flex;
             justify-content: space-between;
-            padding: 8px 10px;
-            border-bottom: 1px solid var(--border);
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border);
+            border-radius: 8px;
             align-items: center;
+            transition: transform 0.2s, background-color 0.2s;
+        }
+
+        .phase-item:hover {
+            background: rgba(255, 255, 255, 0.04);
+            transform: translateX(2px);
+        }
+
+        .phase-name {
+            font-weight: 500;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .phase-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .status-badge {
+            font-size: 0.75em;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
 
         .status-ok {
+            background: rgba(16, 185, 129, 0.1);
             color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.2);
         }
 
         .status-error {
+            background: rgba(244, 63, 94, 0.1);
             color: var(--error);
+            border: 1px solid rgba(244, 63, 94, 0.2);
+        }
+
+        .phase-time {
+            font-size: 0.85em;
+            color: var(--text-muted);
         }
 
         .error-card {
-            background: #3e2723;
+            background: rgba(244, 63, 94, 0.07);
             border-left: 4px solid var(--error);
-            padding: 10px;
-            margin-bottom: 10px;
+            border-top: 1px solid rgba(244, 63, 94, 0.15);
+            border-right: 1px solid rgba(244, 63, 94, 0.15);
+            border-bottom: 1px solid rgba(244, 63, 94, 0.15);
+            border-radius: 4px 8px 8px 4px;
+            padding: 14px 18px;
+            margin-bottom: 12px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .error-card strong {
+            color: var(--error);
+        }
+
+        .error-meta {
+            font-size: 0.8em;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+
+        .error-msg {
+            margin-top: 6px;
+            font-size: 0.9em;
+            line-height: 1.4;
         }
 
         .compile-btn {
@@ -149,36 +314,321 @@
             color: white;
             border: none;
             padding: 8px 20px;
-            border-radius: 3px;
+            border-radius: 6px;
             cursor: pointer;
-            font-weight: bold;
+            font-weight: 600;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.85em;
+            letter-spacing: 0.5px;
+            transition: all 0.2s;
+            box-shadow: 0 4px 12px var(--accent-glow);
         }
 
         .compile-btn:hover {
-            background: #0062a3;
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .compile-btn:active {
+            transform: translateY(1px);
+        }
+
+        .compile-btn:disabled {
+            background: var(--border);
+            color: var(--text-muted);
+            cursor: not-allowed;
+            box-shadow: none;
         }
 
         .hidden {
-            display: none;
+            display: none !important;
         }
 
-        pre {
+        /* Styling for Diff Panel */
+        .diff-container {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+            background: #0d0e12;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .diff-line {
+            display: flex;
+            padding: 2px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.02);
+        }
+
+        .diff-added {
+            background: rgba(16, 185, 129, 0.12);
+            color: #34d399;
+        }
+
+        .diff-removed {
+            background: rgba(244, 63, 94, 0.12);
+            color: #fb7185;
+            text-decoration: line-through;
+        }
+
+        .diff-unchanged {
+            opacity: 0.85;
+        }
+
+        /* Metrics Table Styles */
+        .metrics-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .metrics-table th, .metrics-table td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .metrics-table th {
+            background: rgba(255, 255, 255, 0.03);
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.8em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metrics-table td {
+            font-size: 0.9em;
+        }
+
+        .metrics-table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .reduction-high {
+            color: var(--success);
+            font-weight: 700;
+        }
+
+        .ir-compare {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 12px;
+        }
+
+        .ir-compare-col {
+            display: flex;
+            flex-direction: column;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: #0d0e12;
+            overflow: hidden;
+        }
+
+        .ir-compare-header {
+            background: rgba(255, 255, 255, 0.02);
+            padding: 8px 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 1px solid var(--border);
+            color: var(--text-muted);
+        }
+
+        .ir-compare pre {
             margin: 0;
+            padding: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 0.8em;
+            line-height: 1.5;
+        }
+
+        /* Pass List styling */
+        .pass-list {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+            margin-bottom: 20px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .pass-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .pass-item:hover {
+            background: rgba(255, 255, 255, 0.03);
+            border-color: rgba(99, 102, 241, 0.3);
+        }
+
+        .pass-item input[type="checkbox"] {
+            accent-color: var(--accent);
+            cursor: pointer;
+            margin-top: 3px;
+        }
+
+        .pass-details {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .pass-details label {
+            font-weight: 600;
+            font-size: 0.9em;
+            cursor: pointer;
+        }
+
+        .pass-desc {
+            font-size: 0.8em;
+            color: var(--text-muted);
+        }
+
+        /* Binary panel styling */
+        .binary-options {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 20px;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        .binary-options label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+            font-size: 0.9em;
+            cursor: pointer;
+        }
+
+        .binary-options input[type="checkbox"] {
+            accent-color: var(--accent);
+            width: 16px;
+            height: 16px;
+        }
+
+        .binary-result-card {
+            padding: 16px;
+            border: 1px solid var(--border);
+            margin-top: 12px;
+            border-radius: 8px;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            transition: all 0.2s;
+        }
+
+        .binary-result-card.ok {
+            border-left: 4px solid var(--success);
+            background: rgba(16, 185, 129, 0.04);
+            border-color: rgba(16, 185, 129, 0.3) rgba(16, 185, 129, 0.3) rgba(16, 185, 129, 0.3) var(--success);
+        }
+
+        .binary-result-card.err {
+            border-left: 4px solid var(--error);
+            background: rgba(244, 63, 94, 0.04);
+            border-color: rgba(244, 63, 94, 0.3) rgba(244, 63, 94, 0.3) rgba(244, 63, 94, 0.3) var(--error);
+        }
+
+        .binary-plat-title {
+            font-weight: 700;
+            font-size: 0.95em;
+            margin-bottom: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        .binary-details {
+            font-size: 0.85em;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        .binary-details code {
+            font-family: 'JetBrains Mono', monospace;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #fff;
+        }
+
+        .binary-err-msg {
+            white-space: pre-wrap;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8em;
+            margin-top: 8px;
+            color: #fda4af;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(244, 63, 94, 0.15);
+        }
+
+        .actions-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-size: 0.85em;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.15);
         }
     </style>
 </head>
 
 <body>
     <header>
-        <div><strong>LANGUAGE v3</strong> COMPILADOR GRUPO 3</div>
-        <button class="compile-btn" id="compileBtn">COMPILAR</button>
+        <div class="logo-section">
+            <span class="logo-badge">v4.0</span>
+            <span class="logo-title">LANGUAGE COMPILADOR</span>
+        </div>
+        <div class="compile-controls">
+            <div class="platform-checkboxes">
+                <label title="Compilar y generar binario nativo Linux">
+                    <input type="checkbox" id="headerChkLinux"> Linux
+                </label>
+                <label title="Compilar y generar binario nativo Windows">
+                    <input type="checkbox" id="headerChkWindows"> Windows
+                </label>
+            </div>
+            <button class="compile-btn" id="compileBtn">COMPILAR Y OPTIMIZAR</button>
+        </div>
     </header>
 
     <div class="main-container">
         <div class="editor-section">
             <div class="panel-header">Código Fuente</div>
-            <textarea id="codeEditor">
-</textarea>
+            <textarea id="codeEditor" placeholder="Escribe tu código aquí..."></textarea>
         </div>
 
         <div class="output-section">
@@ -186,29 +636,100 @@
                 <div class="tab active" data-target="fasesPanel">FASES</div>
                 <div class="tab" data-target="tacPanel">TAC</div>
                 <div class="tab" data-target="irPanel">LLVM IR</div>
+                <div class="tab" data-target="optPanel">OPT O3</div>
+                <div class="tab" data-target="manualOptPanel">IR MANUAL</div>
                 <div class="tab" data-target="consolePanel">CONSOLA</div>
                 <div class="tab" data-target="irExecPanel">EJECUCIÓN IR</div>
+                <div class="tab" data-target="binaryPanel">BINARIOS</div>
             </div>
 
+            <!-- Panel Fases -->
             <div id="fasesPanel" class="tab-content">
-                <div id="phasesResult">Presiona "Compilar" para ver el progreso.</div>
+                <div id="phasesResult">Presiona "Compilar y Optimizar" para procesar el código.</div>
                 <div id="errorsResult" style="margin-top: 20px;"></div>
             </div>
 
+            <!-- Panel TAC -->
             <div id="tacPanel" class="tab-content hidden">
-                <pre id="tacOutput"></pre>
+                <pre id="tacOutput" class="console-pre"></pre>
             </div>
 
+            <!-- Panel LLVM IR -->
             <div id="irPanel" class="tab-content hidden">
-                <pre id="irOutput"></pre>
+                <pre id="irOutput" class="console-pre"></pre>
             </div>
 
+            <!-- Panel OPT O3 -->
+            <div id="optPanel" class="tab-content hidden">
+                <table class="metrics-table" id="optMetricsTable">
+                    <thead>
+                        <tr>
+                            <th>Métrica</th>
+                            <th>Original</th>
+                            <th>Optimizado O3</th>
+                            <th>Reducción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="optMetricsBody">
+                        <tr>
+                            <td colspan="4" style="text-align:center; color: var(--text-muted);">Compila un programa para ver las métricas O3</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p id="optTransformations" style="margin-bottom:16px; font-size:0.85em; font-family:'Plus Jakarta Sans', sans-serif;"></p>
+
+                <div class="ir-compare">
+                    <div class="ir-compare-col">
+                        <div class="ir-compare-header">IR Original (Sin Optimizar)</div>
+                        <pre id="irOriginal"></pre>
+                    </div>
+                    <div class="ir-compare-col">
+                        <div class="ir-compare-header">IR Optimizado (PassManager O3)</div>
+                        <pre id="irOptimized"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Panel IR MANUAL -->
+            <div id="manualOptPanel" class="tab-content hidden">
+                <div class="pass-list" id="passList">
+                    <div style="color:var(--text-muted);">Cargando passes disponibles...</div>
+                </div>
+                <div class="actions-bar">
+                    <button class="compile-btn" id="applyPassesBtn">APLICAR PASSES</button>
+                    <button class="btn-secondary" id="exportIrBtn">EXPORTAR IR</button>
+                    <button class="btn-secondary" id="runManualIrBtn">EJECUTAR IR</button>
+                </div>
+
+                <div class="panel-header" style="margin-bottom:10px; border-radius:4px; border:1px solid var(--border);">Comparativa de Cambios (Diff)</div>
+                <div id="diffOutput" class="diff-container">
+                    <div style="padding:16px; color:var(--text-muted); text-align:center;">Selecciona passes y presiona aplicar para ver el diff.</div>
+                </div>
+                <div id="manualMetrics" style="margin-top:16px; font-size:0.85em; font-family:'Plus Jakarta Sans', sans-serif; color:var(--text);"></div>
+            </div>
+
+            <!-- Panel Consola -->
             <div id="consolePanel" class="tab-content hidden">
-                <pre id="consoleOutput"></pre>
+                <pre id="consoleOutput" class="console-pre"></pre>
             </div>
 
+            <!-- Panel Ejecución IR -->
             <div id="irExecPanel" class="tab-content hidden">
-                <pre id="irExecOutput"></pre>
+                <pre id="irExecOutput" class="console-pre"></pre>
+            </div>
+
+            <!-- Panel Binarios -->
+            <div id="binaryPanel" class="tab-content hidden">
+                <div class="binary-options">
+                    <label>
+                        <input type="checkbox" id="chkLinux"> Generar binario nativo Linux
+                    </label>
+                    <label>
+                        <input type="checkbox" id="chkWindows"> Generar executable Windows (.exe)
+                    </label>
+                </div>
+                <button class="compile-btn" id="genBinaryBtn">GENERAR BINARIOS</button>
+                <div id="binaryResult" style="margin-top: 16px;"></div>
             </div>
         </div>
     </div>
@@ -218,7 +739,8 @@
         const editor = CodeMirror.fromTextArea(document.getElementById('codeEditor'), {
             lineNumbers: true,
             mode: 'text/x-c++src',
-            theme: 'default'
+            theme: 'default',
+            viewportMargin: Infinity
         });
 
         // Manejo de Pestañas
@@ -232,18 +754,35 @@
             });
         });
 
+        // Sincronizar checkboxes de header y panel de binarios
+        const headerChkLinux = document.getElementById('headerChkLinux');
+        const headerChkWindows = document.getElementById('headerChkWindows');
+        const chkLinux = document.getElementById('chkLinux');
+        const chkWindows = document.getElementById('chkWindows');
+
+        headerChkLinux.addEventListener('change', () => { chkLinux.checked = headerChkLinux.checked; });
+        headerChkWindows.addEventListener('change', () => { chkWindows.checked = headerChkWindows.checked; });
+        chkLinux.addEventListener('change', () => { headerChkLinux.checked = chkLinux.checked; });
+        chkWindows.addEventListener('change', () => { headerChkWindows.checked = chkWindows.checked; });
+
         // Botón Compilar
+        let lastIR = '';
+        let lastOptimizedIR = '';
+
         document.getElementById('compileBtn').addEventListener('click', async () => {
             const code = editor.getValue();
             const btn = document.getElementById('compileBtn');
             btn.disabled = true;
             btn.innerText = 'COMPILANDO...';
 
+            const target_linux = headerChkLinux.checked;
+            const target_windows = headerChkWindows.checked;
+
             try {
                 const response = await fetch('/compile', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ code })
+                    body: JSON.stringify({ code, target_linux, target_windows })
                 });
                 const data = await response.json();
 
@@ -252,7 +791,7 @@
                 alert('Error al conectar con el servidor.');
             } finally {
                 btn.disabled = false;
-                btn.innerText = 'COMPILAR';
+                btn.innerText = 'COMPILAR Y OPTIMIZAR';
             }
         });
 
@@ -260,13 +799,18 @@
             // Render Fases
             const phasesHtml = data.phases.map(p => `
                 <div class="phase-item">
-                    <span>${p.name}</span>
-                    <span class="${p.status === 'OK' ? 'status-ok' : 'status-error'}">
-                        ${p.status} (${p.time_ms}ms)
-                    </span>
+                    <span class="phase-name">${p.name}</span>
+                    <div class="phase-meta">
+                        <span class="status-badge ${p.status === 'OK' ? 'status-ok' : 'status-error'}">
+                            ${p.status}
+                        </span>
+                        <span class="phase-time">${p.time_ms}ms</span>
+                    </div>
                 </div>
             `).join('');
-            document.getElementById('phasesResult').innerHTML = phasesHtml;
+            document.getElementById('phasesResult').innerHTML = `
+                <div class="phase-list">${phasesHtml}</div>
+            `;
 
             // Render Errores
             let errorsHtml = '';
@@ -275,8 +819,8 @@
                     p.errors.forEach(err => {
                         errorsHtml += `
                             <div class="error-card">
-                                <strong>Error ${err.type}</strong> [Línea ${err.line}, Columna ${err.column}]<br>
-                                ${err.msg}
+                                <div class="error-meta">Error ${err.type} | Línea ${err.line}, Columna ${err.column}</div>
+                                <div class="error-msg">${err.msg}</div>
                             </div>
                         `;
                     });
@@ -284,18 +828,220 @@
             });
             document.getElementById('errorsResult').innerHTML = errorsHtml;
 
-            // Render Salidas
+            // Render Salidas Estándar
+            lastIR = data.ir_output || '';
+            lastOptimizedIR = data.optimized_ir || '';
             document.getElementById('tacOutput').innerText = data.tac_output || '';
-            document.getElementById('irOutput').innerText = data.ir_output || '';
+            document.getElementById('irOutput').innerText = lastIR;
             document.getElementById('consoleOutput').innerText = data.console_output || '';
             document.getElementById('irExecOutput').innerText = data.ir_exec_output || '';
+
+            // Render Métricas O3
+            if (data.opt_metrics && Object.keys(data.opt_metrics).length) {
+                renderOptMetrics(data.opt_metrics, data.ir_output, data.optimized_ir);
+            }
+
+            // Render Resultados Binarios
+            if (data.binary_result && Object.keys(data.binary_result).length) {
+                renderBinaryResults(data.binary_result);
+            }
 
             // Cambiar a pestaña de errores si hubo falla, o consola si éxito
             if (!data.success) {
                 document.querySelector('[data-target="fasesPanel"]').click();
-            } else {
-                // Si todo OK, quizás ir a consola
             }
+        }
+
+        // ── Cargar passes disponibles al iniciar ──────────────────────────────────
+        async function loadPasses() {
+            try {
+                const res = await fetch('/get_passes');
+                const passes = await res.json();
+                const list = document.getElementById('passList');
+                list.innerHTML = Object.entries(passes).map(([key, desc]) => `
+                    <div class="pass-item">
+                        <input type="checkbox" id="pass_${key}" value="${key}">
+                        <div class="pass-details">
+                            <label for="pass_${key}">${key}</label>
+                            <span class="pass-desc">${desc}</span>
+                        </div>
+                    </div>
+                `).join('');
+            } catch(e) {
+                document.getElementById('passList').innerText = 'Error al cargar passes.';
+            }
+        }
+        loadPasses();
+
+        // ── Aplicar passes manuales ───────────────────────────────────────────────
+        let lastManualIR = '';
+
+        document.getElementById('applyPassesBtn').addEventListener('click', async () => {
+            const currentIR = lastIR;
+            if (!currentIR) { alert('Primero compila un programa para generar el IR.'); return; }
+
+            const selected = [...document.querySelectorAll('#passList input:checked')]
+                .map(cb => cb.value);
+            if (!selected.length) { alert('Selecciona al menos un pass.'); return; }
+
+            const btn = document.getElementById('applyPassesBtn');
+            btn.disabled = true;
+            btn.innerText = 'APLICANDO...';
+
+            try {
+                const res = await fetch('/optimize_manual', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ir: currentIR, passes: selected })
+                });
+                const data = await res.json();
+                if (!data.success) { alert('Error: ' + data.message); return; }
+
+                lastManualIR = data.after_ir;
+
+                // Renderizar diff
+                const diffOut = document.getElementById('diffOutput');
+                diffOut.innerHTML = data.diff.map(d => {
+                    const cls = d.type === 'added' ? 'diff-added'
+                              : d.type === 'removed' ? 'diff-removed' : 'diff-unchanged';
+                    return `<div class="diff-line ${cls}">${escapeHtml(d.line)}</div>`;
+                }).join('');
+
+                document.getElementById('manualMetrics').innerHTML =
+                    `Passes aplicados: <strong>${data.metrics.passes_applied.join(', ')}</strong> | ` +
+                    `Instrucciones: ${data.metrics.instructions_before} → ${data.metrics.instructions_after} | ` +
+                    `Tiempo: ${data.metrics.time_ms}ms`;
+            } catch (err) {
+                alert('Error al conectar con el servidor.');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'APLICAR PASSES';
+            }
+        });
+
+        // ── Exportar IR Manual ────────────────────────────────────────────────────
+        document.getElementById('exportIrBtn').addEventListener('click', () => {
+            if (!lastManualIR) { alert('Aplica passes primero.'); return; }
+            const blob = new Blob([lastManualIR], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'output_manual.ll';
+            a.click();
+        });
+
+        // ── Ejecutar IR Manual ────────────────────────────────────────────────────
+        document.getElementById('runManualIrBtn').addEventListener('click', async () => {
+            if (!lastManualIR) { alert('Aplica passes primero.'); return; }
+
+            const btn = document.getElementById('runManualIrBtn');
+            btn.disabled = true;
+            btn.innerText = 'EJECUTANDO...';
+
+            try {
+                const res = await fetch('/run_ir', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ir: lastManualIR })
+                });
+                const data = await res.json();
+                document.querySelector('[data-target="consolePanel"]').click();
+                document.getElementById('consoleOutput').innerText =
+                    data.success ? data.output : 'Error: ' + data.message;
+            } catch (err) {
+                alert('Error al conectar con el servidor.');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'EJECUTAR IR';
+            }
+        });
+
+        // ── Generar binarios desde panel de binarios ──────────────────────────────
+        document.getElementById('genBinaryBtn').addEventListener('click', async () => {
+            const ir = lastOptimizedIR || lastIR;
+            if (!ir) { alert('Primero compila un programa.'); return; }
+
+            const linux   = chkLinux.checked;
+            const windows = chkWindows.checked;
+            if (!linux && !windows) { alert('Selecciona al menos una plataforma.'); return; }
+
+            const btn = document.getElementById('genBinaryBtn');
+            btn.disabled = true;
+            btn.innerText = 'COMPILANDO BINARIOS...';
+
+            try {
+                const res = await fetch('/compile_binary', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ir, linux, windows })
+                });
+                const data = await res.json();
+                const container = document.getElementById('binaryResult');
+
+                if (!data.success) {
+                    container.innerHTML = `<div class="binary-result-card err"><strong>Error del servidor</strong><div class="binary-err-msg">${data.message}</div></div>`;
+                    return;
+                }
+
+                renderBinaryResults(data.result);
+            } catch (err) {
+                alert('Error al conectar con el servidor.');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'GENERAR BINARIOS';
+            }
+        });
+
+        // ── Render de Resultados de Binarios ──────────────────────────────────────
+        function renderBinaryResults(binaryResult) {
+            const container = document.getElementById('binaryResult');
+            container.innerHTML = Object.entries(binaryResult).map(([plat, r]) => `
+                <div class="binary-result-card ${r.success ? 'ok' : 'err'}">
+                    <div class="binary-plat-title">${plat.toUpperCase()}</div>
+                    ${r.success
+                        ? `<div class="binary-details">
+                             Ruta final: <code>${r.binary_path}</code><br>
+                             Tamaño: <code>${(r.size_bytes / 1024).toFixed(1)} KB</code><br>
+                             Tiempo de Compilación: <code>${r.time_ms}ms</code>
+                           </div>`
+                        : `<div class="binary-details">
+                             <span style="color:var(--error); font-weight:600;">Error de Compilación:</span>
+                             <div class="binary-err-msg">${escapeHtml(r.error)}</div>
+                           </div>`}
+                </div>
+            `).join('');
+        }
+
+        // ── Render métricas O3 ────────────────────────────────────────────────────
+        function renderOptMetrics(metrics, irBefore, irAfter) {
+            document.getElementById('irOriginal').innerText = irBefore || '';
+            document.getElementById('irOptimized').innerText = irAfter || '';
+
+            const isReduction = metrics.reduction_pct > 0;
+            const redClass = isReduction ? 'reduction-high' : '';
+
+            document.getElementById('optMetricsBody').innerHTML = `
+                <tr>
+                    <td><strong>Instrucciones LLVM</strong></td>
+                    <td>${metrics.instruction_count_before}</td>
+                    <td>${metrics.instruction_count_after}</td>
+                    <td><span class="${redClass}">${metrics.reduction_pct}%</span></td>
+                </tr>
+                <tr>
+                    <td><strong>Tiempo de Optimización</strong></td>
+                    <td colspan="3">${metrics.time_ms}ms</td>
+                </tr>
+            `;
+
+            const transList = metrics.transformations_applied && metrics.transformations_applied.length > 0
+                ? metrics.transformations_applied.join(' | ')
+                : 'Ninguna';
+            document.getElementById('optTransformations').innerHTML =
+                '<strong>Optimizaciones aplicadas:</strong> <span style="color:var(--accent);">' + transList + '</span>';
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         }
     </script>
 </body>
